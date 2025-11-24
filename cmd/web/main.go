@@ -50,8 +50,9 @@ func main() {
 	dbPassword := env.GetString("DB_PASSWORD", "")
 	dbHost := env.GetString("DB_HOST", "localhost")
 	dbName := env.GetString("DB_NAME", "totalcomp")
+	dbSSLMode := env.GetString("DB_SSLMODE", "require")
 	// database.New prepends postgres:// so we construct user:pass@host/dbname
-	cfg.db.dsn = fmt.Sprintf("%s:%s@%s/%s?sslmode=require", dbUser, dbPassword, dbHost, dbName)
+	cfg.db.dsn = fmt.Sprintf("%s:%s@%s/%s?sslmode=%s", dbUser, dbPassword, dbHost, dbName, dbSSLMode)
 
 	cfg.baseURL = env.GetString("BASE_URL", "http://localhost:3080")
 	cfg.httpPort = env.GetInt("HTTP_PORT", 3080)

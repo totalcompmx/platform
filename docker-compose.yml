@@ -6,7 +6,7 @@ services:
     container_name: compensacion-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensacion}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-temp123}
       POSTGRES_DB: ${POSTGRES_DB:-compensacion}
     ports:
       - "5432:5432"
@@ -38,8 +38,12 @@ services:
       # - AUTO_HTTPS_DOMAIN=totalcomp.mx
       # - AUTO_HTTPS_EMAIL=jcroyoaun@gmail.com
       # - AUTO_HTTPS_STAGING=false
-      # Database (using environment variables)
-      - DB_DSN=${POSTGRES_USER:-compensacion}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-compensacion}?sslmode=disable
+      # Database configuration (the app reads these individual vars, not DATABASE_URL)
+      - DB_HOST=postgres
+      - DB_USER=${POSTGRES_USER:-compensacion}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-temp123}
+      - DB_NAME=${POSTGRES_DB:-compensacion}
+      - DB_SSLMODE=disable
       - DB_AUTOMIGRATE=true
       # Session & Security
       - COOKIE_SECRET_KEY=${COOKIE_SECRET_KEY}
