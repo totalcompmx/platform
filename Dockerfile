@@ -1,4 +1,15 @@
-# Build stage
+# Frontend build stage
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
+
+WORKDIR /app
+
+COPY frontend/package*.json ./frontend/
+RUN npm --prefix frontend ci
+
+COPY frontend ./frontend
+RUN npm --prefix frontend run build
+
+# Go build stage
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 ARG TARGETOS
@@ -15,6 +26,9 @@ RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Copy frontend build output before compiling so go:embed includes Vite assets.
+COPY --from=frontend-builder /app/assets/static/dist ./assets/static/dist
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /app/bin/web ./cmd/web
@@ -50,4 +64,3 @@ EXPOSE 3080
 
 # Run the application
 CMD ["./web"]
-

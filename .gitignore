@@ -1,11 +1,19 @@
 *.md
+docs/
+docs/**/*.md
 # --- Go Build Artifacts ---
 /bin/
 /dist/
+assets/static/dist/
 *.exe
 *.test
 *.prof
 *.out
+
+# --- Frontend ---
+frontend/node_modules/
+frontend/coverage/
+frontend/.vite/
 
 # --- Dependencies (if you vendor) ---
 # vendor/

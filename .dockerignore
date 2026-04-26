@@ -15,10 +15,13 @@ docker-compose.yml
 # Development files
 *.zip
 .DS_Store
+assets/static/dist
+frontend/node_modules
+frontend/coverage
+frontend/.vite
 
 # IDE
 .vscode
 .idea
 *.swp
 *.swo
-

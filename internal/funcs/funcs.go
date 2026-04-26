@@ -45,7 +45,8 @@ var TemplateFuncs = template.FuncMap{
 	"urlSetParam": urlSetParam,
 	"urlDelParam": urlDelParam,
 
-	"dict": dict,
+	"dict":     dict,
+	"viteTags": viteTags,
 }
 
 func formatTime(format string, t time.Time) string {

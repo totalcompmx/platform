@@ -48,8 +48,9 @@ test/integration:
 
 ## test/js: run JavaScript unit tests
 .PHONY: test/js
-test/js:
-	node --test assets/static/js/*.test.mjs
+test/js: frontend/node_modules
+	npm --prefix frontend run typecheck
+	npm --prefix frontend run test:coverage
 
 ## coverage/unit: require 100% coverage for all Go unit packages
 .PHONY: coverage/unit
@@ -97,9 +98,34 @@ tidy:
 	go mod tidy -v
 	go fmt ./...
 
+frontend/node_modules: frontend/package-lock.json frontend/package.json
+	npm --prefix frontend ci
+
+## install/frontend: install frontend dependencies
+.PHONY: install/frontend
+install/frontend:
+	npm --prefix frontend ci
+
+VITE_DEV_SERVER_URL ?= http://127.0.0.1:5173
+
+## build/frontend: build frontend assets with Vite
+.PHONY: build/frontend
+build/frontend: frontend/node_modules
+	npm --prefix frontend run build
+
+## run/frontend: run Vite development server
+.PHONY: run/frontend
+run/frontend: frontend/node_modules
+	npm --prefix frontend run dev
+
+## run/backend-vite: run the Go application using the Vite development server
+.PHONY: run/backend-vite
+run/backend-vite:
+	VITE_DEV_SERVER_URL=$(VITE_DEV_SERVER_URL) go run ./cmd/web
+
 ## build: build the cmd/web application
 .PHONY: build
-build:
+build: build/frontend
 	go build -o=/tmp/bin/web ./cmd/web
 	
 ## run: run the cmd/web application
@@ -112,7 +138,7 @@ run: build
 run/live:
 	go run github.com/cosmtrek/air@v1.43.0 \
 		--build.cmd "make build" --build.bin "/tmp/bin/web" --build.delay "100" \
-		--build.exclude_dir "" \
+		--build.exclude_dir "assets/static/dist,frontend/node_modules" \
 		--build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" \
 		--misc.clean_on_exit "true"
 

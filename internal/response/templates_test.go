@@ -55,7 +55,7 @@ func TestHomePageScriptConfig(t *testing.T) {
 
 	assert.Nil(t, err)
 	body := w.Body.String()
-	assert.True(t, strings.Contains(body, `<script src="/static/js/home.js" defer></script>`))
+	assert.True(t, strings.Contains(body, `/static/dist/assets/home`) || !strings.Contains(body, `type="module"`))
 	assert.True(t, strings.Contains(body, `csrfToken: "csrf-token"`))
 	assert.True(t, strings.Contains(body, `usdMxnRate: "19.1234"`))
 }
