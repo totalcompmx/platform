@@ -14,7 +14,7 @@ func TestContextSetAuthenticatedUser(t *testing.T) {
 	testUser := database.User{
 		ID:             123,
 		Created:        time.Now(),
-		Email:          "alice@github.com/jcroyoaun/totalcompmx",
+		Email:          "alice@example.com",
 		HashedPassword: "$2a$12$testhashedpassword",
 	}
 
@@ -36,7 +36,7 @@ func TestContextGetAuthenticatedUser(t *testing.T) {
 	testUser := database.User{
 		ID:             123,
 		Created:        time.Now(),
-		Email:          "alice@github.com/jcroyoaun/totalcompmx",
+		Email:          "alice@example.com",
 		HashedPassword: "$2a$12$testhashedpassword",
 	}
 

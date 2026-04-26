@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jcroyoaun/totalcompmx/internal/assert"
+	"github.com/jcroyoaun/totalcompmx/internal/database"
 )
 
 func TestNamedTemplate(t *testing.T) {
@@ -18,6 +19,45 @@ func TestNamedTemplate(t *testing.T) {
 		assert.Equal(t, w.Code, http.StatusTeapot)
 		assert.Equal(t, strings.TrimSpace(w.Body.String()), "<strong>this is a test</strong>")
 	})
+}
+
+func TestPage(t *testing.T) {
+	t.Run("Writes embedded page with base template", func(t *testing.T) {
+		w := httptest.NewRecorder()
+
+		err := Page(w, http.StatusTeapot, nil, "pages/privacy.tmpl")
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusTeapot, w.Code)
+		assert.True(t, strings.Contains(w.Body.String(), "Aviso de Privacidad"))
+	})
+}
+
+func TestPageWithHeaders(t *testing.T) {
+	t.Run("Writes embedded page with custom headers", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		headers := http.Header{"X-Test": []string{"ok"}}
+
+		err := PageWithHeaders(w, http.StatusAccepted, nil, headers, "pages/terms.tmpl")
+		assert.Nil(t, err)
+		assert.Equal(t, http.StatusAccepted, w.Code)
+		assert.Equal(t, "ok", w.Header().Get("X-Test"))
+	})
+}
+
+func TestHomePageScriptConfig(t *testing.T) {
+	w := httptest.NewRecorder()
+	data := map[string]any{
+		"CSRFToken":  "csrf-token",
+		"FiscalYear": database.FiscalYear{USDMXNRate: 19.1234},
+	}
+
+	err := Page(w, http.StatusOK, data, "pages/home.tmpl")
+
+	assert.Nil(t, err)
+	body := w.Body.String()
+	assert.True(t, strings.Contains(body, `<script src="/static/js/home.js" defer></script>`))
+	assert.True(t, strings.Contains(body, `csrfToken: "csrf-token"`))
+	assert.True(t, strings.Contains(body, `usdMxnRate: "19.1234"`))
 }
 
 func TestNamedTemplateWithHeaders(t *testing.T) {

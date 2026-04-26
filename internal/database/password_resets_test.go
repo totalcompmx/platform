@@ -1,3 +1,5 @@
+//go:build integration
+
 package database
 
 import (
@@ -91,41 +93,7 @@ func TestGetPasswordReset(t *testing.T) {
 }
 
 func TestDeletePasswordResets(t *testing.T) {
-	t.Run("Successfully deletes all password resets for user", func(t *testing.T) {
-		db := newTestDB(t)
-
-		ttl := 24 * time.Hour
-
-		err := db.InsertPasswordReset("token1", testUsers["alice"].id, ttl)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = db.InsertPasswordReset("token2", testUsers["alice"].id, ttl)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = db.InsertPasswordReset("token3", testUsers["bob"].id, ttl)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = db.DeletePasswordResets(testUsers["alice"].id)
-		assert.Nil(t, err)
-
-		var count int
-		err = db.Get(&count, "SELECT COUNT(*) FROM password_resets WHERE user_id = $1", testUsers["alice"].id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, count, 0)
-
-		err = db.Get(&count, "SELECT COUNT(*) FROM password_resets WHERE user_id = $1", testUsers["bob"].id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, 1, count)
-	})
+	t.Run("Successfully deletes all password resets for user", testDeletePasswordResetsForUser)
 
 	t.Run("Does not error when no password resets exist for user", func(t *testing.T) {
 		db := newTestDB(t)
@@ -135,4 +103,45 @@ func TestDeletePasswordResets(t *testing.T) {
 		err := db.DeletePasswordResets(userID)
 		assert.Nil(t, err)
 	})
+}
+
+func testDeletePasswordResetsForUser(t *testing.T) {
+	db := newTestDB(t)
+	insertPasswordResetSeeds(t, db)
+
+	err := db.DeletePasswordResets(testUsers["alice"].id)
+	assert.Nil(t, err)
+
+	assertPasswordResetCount(t, db, testUsers["alice"].id, 0)
+	assertPasswordResetCount(t, db, testUsers["bob"].id, 1)
+}
+
+func insertPasswordResetSeeds(t *testing.T, db *DB) {
+	t.Helper()
+	ttl := 24 * time.Hour
+	seeds := []struct {
+		token  string
+		userID int
+	}{
+		{"token1", testUsers["alice"].id},
+		{"token2", testUsers["alice"].id},
+		{"token3", testUsers["bob"].id},
+	}
+
+	for _, seed := range seeds {
+		err := db.InsertPasswordReset(seed.token, seed.userID, ttl)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func assertPasswordResetCount(t *testing.T, db *DB, userID int, expected int) {
+	t.Helper()
+	var count int
+	err := db.Get(&count, "SELECT COUNT(*) FROM password_resets WHERE user_id = $1", userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, expected, count)
 }

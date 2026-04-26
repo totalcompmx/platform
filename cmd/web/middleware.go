@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/jcroyoaun/totalcompmx/internal/database"
 	"github.com/jcroyoaun/totalcompmx/internal/metrics"
 	"github.com/jcroyoaun/totalcompmx/internal/response"
 
@@ -69,7 +70,7 @@ func (app *application) preventCSRF(next http.Handler) http.Handler {
 		Path:     "/",
 		MaxAge:   86400,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   true,
+		Secure:   app.config.cookie.secure,
 	})
 
 	csrfHandler.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,24 +82,32 @@ func (app *application) preventCSRF(next http.Handler) http.Handler {
 
 func (app *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-		if id == 0 {
-			next.ServeHTTP(w, r)
+		authenticatedRequest, ok := app.authenticatedRequest(w, r)
+		if !ok {
 			return
 		}
 
-		user, found, err := app.db.GetUser(id)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		if found {
-			r = contextSetAuthenticatedUser(r, user)
-		}
-
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, authenticatedRequest)
 	})
+}
+
+func (app *application) authenticatedRequest(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+	if id == 0 {
+		return r, true
+	}
+
+	user, found, err := app.db.GetUser(id)
+	if err != nil {
+		app.serverError(w, r, err)
+		return nil, false
+	}
+
+	if found {
+		return contextSetAuthenticatedUser(r, user), true
+	}
+
+	return r, true
 }
 
 func (app *application) requireAuthenticatedUser(next http.Handler) http.Handler {
@@ -132,24 +141,13 @@ func (app *application) requireAnonymousUser(next http.Handler) http.Handler {
 
 func (app *application) requireBasicAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		username, plaintextPassword, ok := r.BasicAuth()
-		if !ok {
-			app.basicAuthenticationRequired(w, r)
-			return
-		}
-
-		if app.config.basicAuth.username != username {
-			app.basicAuthenticationRequired(w, r)
-			return
-		}
-
-		err := bcrypt.CompareHashAndPassword([]byte(app.config.basicAuth.hashedPassword), []byte(plaintextPassword))
-		switch {
-		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
-			app.basicAuthenticationRequired(w, r)
-			return
-		case err != nil:
+		valid, err := app.validBasicAuthentication(r)
+		if err != nil {
 			app.serverError(w, r, err)
+			return
+		}
+		if !valid {
+			app.basicAuthenticationRequired(w, r)
 			return
 		}
 
@@ -157,104 +155,145 @@ func (app *application) requireBasicAuthentication(next http.Handler) http.Handl
 	})
 }
 
+func (app *application) validBasicAuthentication(r *http.Request) (bool, error) {
+	username, plaintextPassword, ok := r.BasicAuth()
+	if !ok {
+		return false, nil
+	}
+	if app.config.basicAuth.username != username {
+		return false, nil
+	}
+	return app.validBasicAuthPassword(plaintextPassword)
+}
+
+func (app *application) validBasicAuthPassword(plaintextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword([]byte(app.config.basicAuth.hashedPassword), []byte(plaintextPassword))
+	switch {
+	case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+		return false, nil
+	case err != nil:
+		return false, err
+	default:
+		return true, nil
+	}
+}
+
 // requireAPIKey validates the API key in the Authorization header (stateless)
 func (app *application) requireAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract API key from Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			err := response.JSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "Missing Authorization header. Use: Authorization: Bearer YOUR_API_KEY",
-			})
-			if err != nil {
-				app.serverError(w, r, err)
-			}
+		user, ok := app.authenticatedAPIUser(w, r)
+		if !ok {
 			return
 		}
 
-		// Expect format: "Bearer <API_KEY>"
-		const bearerPrefix = "Bearer "
-		if len(authHeader) < len(bearerPrefix) || authHeader[:len(bearerPrefix)] != bearerPrefix {
-			err := response.JSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "Invalid Authorization format. Use: Authorization: Bearer YOUR_API_KEY",
-			})
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
+		app.recordAPIUsage(r, user.ID)
+		next.ServeHTTP(w, contextSetAuthenticatedUser(r, user))
+	})
+}
 
-		apiKey := authHeader[len(bearerPrefix):]
-		if apiKey == "" {
-			err := response.JSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "API key is empty",
-			})
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
+func (app *application) authenticatedAPIUser(w http.ResponseWriter, r *http.Request) (database.User, bool) {
+	apiKey, ok := app.requestAPIKey(w, r)
+	if !ok {
+		return database.User{}, false
+	}
 
-		// Look up user by API key
-		user, found, err := app.db.GetUserByAPIKey(apiKey)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
+	user, ok := app.apiUserForKey(w, r, apiKey)
+	if !ok {
+		return database.User{}, false
+	}
+	if !app.allowAPIRequest(w, r, user) {
+		return database.User{}, false
+	}
 
-		if !found {
-			err := response.JSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "Invalid API key",
-			})
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
+	return user, true
+}
 
-		// RATE LIMITING: Check if user has exceeded their limit
-		// Unverified users: 10 calls/day
-		// Verified users: 100 calls/month (TODO: implement monthly check)
-		if !user.EmailVerified {
-			// Check daily limit for unverified users
-			dailyCount, err := app.db.GetDailyAPICallCount(user.ID)
-			if err != nil {
-				app.serverError(w, r, err)
-				return
-			}
+func (app *application) requestAPIKey(w http.ResponseWriter, r *http.Request) (string, bool) {
+	apiKey, authErr := bearerAPIKey(r)
+	if authErr != "" {
+		app.writeAPIError(w, r, http.StatusUnauthorized, authErr)
+		return "", false
+	}
+	return apiKey, true
+}
 
-			if dailyCount >= 10 {
-				err := response.JSON(w, http.StatusTooManyRequests, map[string]interface{}{
-					"error":   "Daily API limit exceeded",
-					"message": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month.",
-					"limit":   10,
-					"used":    dailyCount,
-					"type":    "unverified_user",
-					"action":  "Please verify your email to increase your limit.",
-				})
-				if err != nil {
-					app.serverError(w, r, err)
-				}
-				return
-			}
-		}
+func (app *application) apiUserForKey(w http.ResponseWriter, r *http.Request, apiKey string) (database.User, bool) {
+	user, found, err := app.db.GetUserByAPIKey(apiKey)
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.User{}, false
+	}
+	if !found {
+		app.writeAPIError(w, r, http.StatusUnauthorized, "Invalid API key")
+		return database.User{}, false
+	}
 
-		// Log the API call for rate limiting
-		err = app.db.LogAPICall(user.ID)
-		if err != nil {
-			// Don't block the request if logging fails, but log the error
-			app.logger.Error("failed to log API call", "error", err, "user_id", user.ID)
-		}
+	return user, true
+}
 
-		// Increment API calls counter (fire and forget, don't block on errors)
-		go func() {
-			_ = app.db.IncrementAPICallsCount(user.ID)
-		}()
+func bearerAPIKey(r *http.Request) (string, string) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", "Missing Authorization header. Use: Authorization: Bearer YOUR_API_KEY"
+	}
 
-		// Store user in request context for handler access
-		r = contextSetAuthenticatedUser(r, user)
+	apiKey, ok := strings.CutPrefix(authHeader, "Bearer ")
+	if !ok {
+		return "", "Invalid Authorization format. Use: Authorization: Bearer YOUR_API_KEY"
+	}
+	if apiKey == "" {
+		return "", "API key is empty"
+	}
 
-		next.ServeHTTP(w, r)
+	return apiKey, ""
+}
+
+func (app *application) allowAPIRequest(w http.ResponseWriter, r *http.Request, user database.User) bool {
+	if user.EmailVerified {
+		return true
+	}
+
+	dailyCount, err := app.db.GetDailyAPICallCount(user.ID)
+	if err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+	if dailyCount >= 10 {
+		app.writeAPIRateLimitError(w, r, dailyCount)
+		return false
+	}
+
+	return true
+}
+
+func (app *application) writeAPIRateLimitError(w http.ResponseWriter, r *http.Request, dailyCount int) {
+	err := responseJSON(w, http.StatusTooManyRequests, map[string]any{
+		"error":   "Daily API limit exceeded",
+		"message": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month.",
+		"limit":   10,
+		"used":    dailyCount,
+		"type":    "unverified_user",
+		"action":  "Please verify your email to increase your limit.",
+	})
+	if err != nil {
+		app.serverError(w, r, err)
+	}
+}
+
+func (app *application) writeAPIError(w http.ResponseWriter, r *http.Request, status int, message string) {
+	err := responseJSON(w, status, map[string]string{"error": message})
+	if err != nil {
+		app.serverError(w, r, err)
+	}
+}
+
+func (app *application) recordAPIUsage(r *http.Request, userID int) {
+	if err := app.db.LogAPICall(userID); err != nil {
+		app.logger.Error("failed to log API call", "error", err, "user_id", userID)
+	}
+
+	app.backgroundTask(r, func() error {
+		return app.db.IncrementAPICallsCount(userID)
 	})
 }
 
@@ -266,29 +305,33 @@ func (app *application) prometheusMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		start := time.Now()
-
-		// Use the custom response writer to capture status code
-		// Check if w is already a MetricsResponseWriter (e.g. from logAccess)
-		var mw *response.MetricsResponseWriter
-		if v, ok := w.(*response.MetricsResponseWriter); ok {
-			mw = v
-		} else {
-			mw = response.NewMetricsResponseWriter(w)
-		}
-
-		// Increment active requests
-		metrics.ActiveRequests.Inc()
-		defer metrics.ActiveRequests.Dec()
-
-		// If we wrapped it, use mw, otherwise w is already mw
-		next.ServeHTTP(mw, r)
-
-		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(mw.StatusCode)
-
-		// Record metrics
-		metrics.RequestDuration.WithLabelValues(r.Method, r.URL.Path, status).Observe(duration)
-		metrics.RequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
+		app.serveWithPrometheusMetrics(w, r, next)
 	})
+}
+
+func (app *application) serveWithPrometheusMetrics(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	start := time.Now()
+	mw := metricsResponseWriter(w)
+
+	metrics.ActiveRequests.Inc()
+	defer metrics.ActiveRequests.Dec()
+
+	next.ServeHTTP(mw, r)
+	recordHTTPMetrics(r, mw, start)
+}
+
+func metricsResponseWriter(w http.ResponseWriter) *response.MetricsResponseWriter {
+	if mw, ok := w.(*response.MetricsResponseWriter); ok {
+		return mw
+	}
+
+	return response.NewMetricsResponseWriter(w)
+}
+
+func recordHTTPMetrics(r *http.Request, mw *response.MetricsResponseWriter, start time.Time) {
+	duration := time.Since(start).Seconds()
+	status := strconv.Itoa(mw.StatusCode)
+
+	metrics.RequestDuration.WithLabelValues(r.Method, r.URL.Path, status).Observe(duration)
+	metrics.RequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
 }

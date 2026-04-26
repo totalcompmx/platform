@@ -1,6 +1,7 @@
 package request
 
 import (
+	"errors"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -16,7 +17,7 @@ type testDecodeJSONTarget struct {
 
 func TestDecodeJSON(t *testing.T) {
 	t.Run("Decode valid JSON successfully", func(t *testing.T) {
-		jsonBody := `{"name":"John","age":30,"email":"john@github.com/jcroyoaun/totalcompmx"}`
+		jsonBody := `{"name":"John","age":30,"email":"john@example.com"}`
 		req := httptest.NewRequest("POST", "/test", strings.NewReader(jsonBody))
 		w := httptest.NewRecorder()
 
@@ -25,11 +26,11 @@ func TestDecodeJSON(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, target.Name, "John")
 		assert.Equal(t, target.Age, 30)
-		assert.Equal(t, target.Email, "john@github.com/jcroyoaun/totalcompmx")
+		assert.Equal(t, target.Email, "john@example.com")
 	})
 
 	t.Run("Allow unknown fields", func(t *testing.T) {
-		jsonBody := `{"name":"John","age":30,"email":"john@github.com/jcroyoaun/totalcompmx","unknown_field":"value"}`
+		jsonBody := `{"name":"John","age":30,"email":"john@example.com","unknown_field":"value"}`
 		req := httptest.NewRequest("POST", "/test", strings.NewReader(jsonBody))
 		w := httptest.NewRecorder()
 
@@ -38,7 +39,7 @@ func TestDecodeJSON(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, target.Name, "John")
 		assert.Equal(t, target.Age, 30)
-		assert.Equal(t, target.Email, "john@github.com/jcroyoaun/totalcompmx")
+		assert.Equal(t, target.Email, "john@example.com")
 	})
 
 	t.Run("Return error for empty body", func(t *testing.T) {
@@ -85,7 +86,7 @@ func TestDecodeJSON(t *testing.T) {
 	})
 
 	t.Run("Return error for incorrect JSON type", func(t *testing.T) {
-		jsonBody := `{"name":"John","age":"not-a-number","email":"john@github.com/jcroyoaun/totalcompmx"}`
+		jsonBody := `{"name":"John","age":"not-a-number","email":"john@example.com"}`
 		req := httptest.NewRequest("POST", "/test", strings.NewReader(jsonBody))
 		w := httptest.NewRecorder()
 
@@ -123,7 +124,7 @@ func TestDecodeJSON(t *testing.T) {
 
 func TestDecodeJSONStrict(t *testing.T) {
 	t.Run("Return error for unknown fields", func(t *testing.T) {
-		jsonBody := `{"name":"John","age":30,"email":"john@github.com/jcroyoaun/totalcompmx","unknown_field":"value"}`
+		jsonBody := `{"name":"John","age":30,"email":"john@example.com","unknown_field":"value"}`
 		req := httptest.NewRequest("POST", "/test", strings.NewReader(jsonBody))
 		w := httptest.NewRecorder()
 
@@ -131,5 +132,28 @@ func TestDecodeJSONStrict(t *testing.T) {
 		err := DecodeJSONStrict(w, req, &target)
 		assert.NotNil(t, err)
 		assert.Equal(t, err.Error(), `body contains unknown key "unknown_field"`)
+	})
+}
+
+func TestDecodeJSONInvalidUnmarshal(t *testing.T) {
+	t.Run("Panics for invalid JSON destination", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/test", strings.NewReader(`{"name":"John"}`))
+		w := httptest.NewRecorder()
+
+		defer func() {
+			assert.NotNil(t, recover())
+		}()
+
+		_ = DecodeJSON(w, req, nil)
+	})
+}
+
+func TestDecodeJSONError(t *testing.T) {
+	t.Run("Returns original error when no handler matches", func(t *testing.T) {
+		original := errors.New("plain error")
+
+		err := decodeJSONError(original)
+
+		assert.Equal(t, original, err)
 	})
 }

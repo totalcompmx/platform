@@ -10,15 +10,32 @@ import (
 
 // Worker manages background ETL jobs for financial data updates
 type Worker struct {
-	db     *database.DB
+	db     workerDB
 	logger *slog.Logger
-	
+
 	// Clients
-	banxico *BanxicoClient
-	inegi   *INEGIClient
-	
+	banxico exchangeRateClient
+	inegi   umaClient
+
 	// Control
 	stopChan chan struct{}
+}
+
+type workerDB interface {
+	UpdateExchangeRate(float64) error
+	UpsertUMAForYear(int, float64, float64, float64) error
+}
+
+type exchangeRateClient interface {
+	GetExchangeRate(context.Context) (float64, error)
+}
+
+type umaClient interface {
+	GetUMA(context.Context) (*UMAData, error)
+}
+
+type tokenClient interface {
+	ConfiguredToken() string
 }
 
 // New creates a new Worker instance
@@ -58,82 +75,66 @@ func (w *Worker) Stop() {
 // runInitialJobs executes all jobs once at startup
 func (w *Worker) runInitialJobs() {
 	w.logger.Info("running initial ETL jobs")
-	
-	// Run Banxico update (skip if no token configured)
-	if w.banxico.token == "" {
-		w.logger.Warn("skipping initial Banxico update - no token configured")
-	} else {
-		if err := w.updateExchangeRate(); err != nil {
-			w.logger.Error("initial banxico update failed", "error", err)
-		}
+	w.runInitialJob("Banxico", configuredToken(w.banxico), w.updateExchangeRate)
+	w.runInitialJob("INEGI", configuredToken(w.inegi), w.updateUMA)
+}
+
+func (w *Worker) runInitialJob(name string, token string, run func() error) {
+	if token == "" {
+		w.logger.Warn("skipping initial " + name + " update - no token configured")
+		return
 	}
-	
-	// Run INEGI update (skip if no token configured)
-	if w.inegi.token == "" {
-		w.logger.Warn("skipping initial INEGI update - no token configured")
-	} else {
-		if err := w.updateUMA(); err != nil {
-			w.logger.Error("initial inegi update failed", "error", err)
-		}
+	if err := run(); err != nil {
+		w.logger.Error("initial "+name+" update failed", "error", err)
 	}
 }
 
 // scheduleBanxico runs daily at 14:00 CST
 func (w *Worker) scheduleBanxico() {
-	// Skip scheduling if no token configured
-	if w.banxico.token == "" {
+	if configuredToken(w.banxico) == "" {
 		w.logger.Info("banxico scheduler disabled - no token configured")
 		return
 	}
+	w.scheduleLoop(time.NewTicker(1*time.Hour), shouldRunBanxico, "banxico", w.updateExchangeRate)
+}
 
-	ticker := time.NewTicker(1 * time.Hour) // Check every hour
+// scheduleINEGI runs weekly on Mondays at 09:00 CST
+func (w *Worker) scheduleINEGI() {
+	if configuredToken(w.inegi) == "" {
+		w.logger.Info("inegi scheduler disabled - no token configured")
+		return
+	}
+	w.scheduleLoop(time.NewTicker(6*time.Hour), shouldRunINEGI, "inegi", w.updateUMA)
+}
+
+func (w *Worker) scheduleLoop(ticker *time.Ticker, shouldRun func(time.Time) bool, name string, run func() error) {
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ticker.C:
-			now := time.Now().In(cstLocation())
-			
-			// Run at 14:00 CST daily
-			if now.Hour() == 14 && now.Minute() < 60 {
-				w.logger.Info("running scheduled banxico update")
-				if err := w.updateExchangeRate(); err != nil {
-					w.logger.Error("banxico update failed", "error", err)
-				}
-			}
+			w.runScheduledJob(shouldRun, name, run)
 		case <-w.stopChan:
 			return
 		}
 	}
 }
 
-// scheduleINEGI runs weekly on Mondays at 09:00 CST
-func (w *Worker) scheduleINEGI() {
-	// Skip scheduling if no token configured
-	if w.inegi.token == "" {
-		w.logger.Info("inegi scheduler disabled - no token configured")
+func (w *Worker) runScheduledJob(shouldRun func(time.Time) bool, name string, run func() error) {
+	if !shouldRun(time.Now().In(cstLocation())) {
 		return
 	}
-
-	ticker := time.NewTicker(6 * time.Hour) // Check every 6 hours
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			now := time.Now().In(cstLocation())
-			
-			// Run on Mondays at 09:00 CST
-			if now.Weekday() == time.Monday && now.Hour() == 9 && now.Minute() < 360 {
-				w.logger.Info("running scheduled inegi update")
-				if err := w.updateUMA(); err != nil {
-					w.logger.Error("inegi update failed", "error", err)
-				}
-			}
-		case <-w.stopChan:
-			return
-		}
+	w.logger.Info("running scheduled " + name + " update")
+	if err := run(); err != nil {
+		w.logger.Error(name+" update failed", "error", err)
 	}
+}
+
+func shouldRunBanxico(now time.Time) bool {
+	return now.Hour() == 14 && now.Minute() < 60
+}
+
+func shouldRunINEGI(now time.Time) bool {
+	return now.Weekday() == time.Monday && now.Hour() == 9 && now.Minute() < 360
 }
 
 // FetchUSDMXN triggers an immediate update of the USD/MXN exchange rate
@@ -175,14 +176,15 @@ func (w *Worker) updateUMA() error {
 		return err
 	}
 
-	// Update the active fiscal year with new UMA values
-	if err := w.db.UpdateUMA(umaData.Annual, umaData.Monthly, umaData.Daily); err != nil {
+	// Store UMA values on the source-year row and make that row active.
+	if err := w.db.UpsertUMAForYear(umaData.Year, umaData.Annual, umaData.Monthly, umaData.Daily); err != nil {
 		return err
 	}
 
-	w.logger.Info("uma updated", 
-		"annual", umaData.Annual, 
-		"monthly", umaData.Monthly, 
+	w.logger.Info("uma updated and fiscal year activated",
+		"year", umaData.Year,
+		"annual", umaData.Annual,
+		"monthly", umaData.Monthly,
 		"daily", umaData.Daily,
 		"source", "inegi")
 	return nil
@@ -190,7 +192,7 @@ func (w *Worker) updateUMA() error {
 
 // cstLocation returns CST timezone
 func cstLocation() *time.Location {
-	loc, err := time.LoadLocation("America/Mexico_City")
+	loc, err := loadLocation("America/Mexico_City")
 	if err != nil {
 		// Fallback to UTC-6 (CST)
 		return time.FixedZone("CST", -6*60*60)
@@ -198,3 +200,13 @@ func cstLocation() *time.Location {
 	return loc
 }
 
+var loadLocation = time.LoadLocation
+
+func configuredToken(client any) string {
+	tokenClient, ok := client.(tokenClient)
+	if !ok {
+		return ""
+	}
+
+	return tokenClient.ConfiguredToken()
+}

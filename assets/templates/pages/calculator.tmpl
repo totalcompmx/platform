@@ -21,9 +21,7 @@
                     placeholder="Ej: 15000"
                     style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 1rem;"
                 >
-                {{with .Form.Validator.FieldErrors.GrossMonthlySalary}}
-                    <span style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; display: block;">{{.}}</span>
-                {{end}}
+                {{template "calculator:field-error" .Form.Validator.FieldErrors.GrossMonthlySalary}}
             </div>
 
             <div style="margin-bottom: 1.5rem;">
@@ -39,9 +37,7 @@
                     placeholder="Ej: 3"
                     style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 1rem;"
                 >
-                {{with .Form.Validator.FieldErrors.YearsOfService}}
-                    <span style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; display: block;">{{.}}</span>
-                {{end}}
+                {{template "calculator:field-error" .Form.Validator.FieldErrors.YearsOfService}}
             </div>
 
             <button 
@@ -53,8 +49,29 @@
         </form>
     </div>
 
-    {{if .Result}}
-    <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    {{template "calculator:result" .}}
+
+    <div style="margin-top: 2rem; padding: 1rem; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; font-size: 0.875rem; color: #1e40af;">
+        <strong>ℹ️ Nota:</strong> Este cálculo incluye las tarifas ISR 2025, tasas IMSS progresivas de Cesantía, 
+        y el Subsidio al Empleo cuando aplica. Los cálculos son aproximados y no incluyen beneficios adicionales 
+        como Fondo de Ahorro o Infonavit.
+    </div>
+
+    <div style="margin-top: 1rem; text-align: center;">
+        <a href="/" style="color: #2563eb; text-decoration: none;">← Regresar al inicio</a>
+    </div>
+</div>
+{{end}}
+
+{{define "calculator:field-error"}}
+{{with .}}
+<span style="color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; display: block;">{{.}}</span>
+{{end}}
+{{end}}
+
+{{define "calculator:result"}}
+{{if .Result}}
+<div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <h2 style="color: #059669; margin-bottom: 1.5rem; border-bottom: 2px solid #059669; padding-bottom: 0.5rem;">
             📊 Resultado del Cálculo
         </h2>
@@ -115,18 +132,6 @@
                 {{end}}
             </div>
         </div>
-    </div>
-    {{end}}
-
-    <div style="margin-top: 2rem; padding: 1rem; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; font-size: 0.875rem; color: #1e40af;">
-        <strong>ℹ️ Nota:</strong> Este cálculo incluye las tarifas ISR 2025, tasas IMSS progresivas de Cesantía, 
-        y el Subsidio al Empleo cuando aplica. Los cálculos son aproximados y no incluyen beneficios adicionales 
-        como Fondo de Ahorro o Infonavit.
-    </div>
-
-    <div style="margin-top: 1rem; text-align: center;">
-        <a href="/" style="color: #2563eb; text-decoration: none;">← Regresar al inicio</a>
-    </div>
 </div>
 {{end}}
-
+{{end}}

@@ -45,16 +45,12 @@
                         name="Email" 
                         value="{{.Form.Email}}"
                         placeholder="tu@email.com"
-                        style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{if .Form.Validator.FieldErrors.Email}}#ef4444{{else}}#334155{{end}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
+                        style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{template "login:border-color" .Form.Validator.FieldErrors.Email}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
                         onfocus="this.style.borderColor='#6366f1'"
-                        onblur="this.style.borderColor='{{if .Form.Validator.FieldErrors.Email}}#ef4444{{else}}#334155{{end}}'"
+                        onblur="this.style.borderColor='{{template "login:border-color" .Form.Validator.FieldErrors.Email}}'"
                         required
                         autofocus>
-                    {{with .Form.Validator.FieldErrors.Email}}
-                    <p style="color: #ef4444; font-size: 0.75rem; margin: 0.5rem 0 0 0; font-weight: 500;">
-                        ❌ {{.}}
-                    </p>
-                    {{end}}
+                    {{template "login:field-error" .Form.Validator.FieldErrors.Email}}
                 </div>
 
                 <!-- Password Field -->
@@ -66,15 +62,11 @@
                         type="password" 
                         name="Password"
                         placeholder="Tu contraseña"
-                        style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{if .Form.Validator.FieldErrors.Password}}#ef4444{{else}}#334155{{end}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
+                        style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{template "login:border-color" .Form.Validator.FieldErrors.Password}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
                         onfocus="this.style.borderColor='#6366f1'"
-                        onblur="this.style.borderColor='{{if .Form.Validator.FieldErrors.Password}}#ef4444{{else}}#334155{{end}}'"
+                        onblur="this.style.borderColor='{{template "login:border-color" .Form.Validator.FieldErrors.Password}}'"
                         required>
-                    {{with .Form.Validator.FieldErrors.Password}}
-                    <p style="color: #ef4444; font-size: 0.75rem; margin: 0.5rem 0 0 0; font-weight: 500;">
-                        ❌ {{.}}
-                    </p>
-                    {{end}}
+                    {{template "login:field-error" .Form.Validator.FieldErrors.Password}}
                 </div>
 
                 <!-- Forgot Password Link -->
@@ -127,4 +119,16 @@
         </div>
     </div>
 </div>
+{{end}}
+
+{{define "login:border-color"}}
+{{if .}}#ef4444{{else}}#334155{{end}}
+{{end}}
+
+{{define "login:field-error"}}
+{{with .}}
+<p style="color: #ef4444; font-size: 0.75rem; margin: 0.5rem 0 0 0; font-weight: 500;">
+    ❌ {{.}}
+</p>
+{{end}}
 {{end}}

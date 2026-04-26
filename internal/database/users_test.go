@@ -1,3 +1,5 @@
+//go:build integration
+
 package database
 
 import (
@@ -11,7 +13,7 @@ func TestInsertUser(t *testing.T) {
 	t.Run("Successfully inserts user and returns ID", func(t *testing.T) {
 		db := newTestDB(t)
 
-		testEmail := "test@github.com/jcroyoaun/totalcompmx"
+		testEmail := "test@example.com"
 		testHashedPassword := "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewrBQ7Q/C0YQxK.6"
 
 		id, err := db.InsertUser(testEmail, testHashedPassword)
@@ -75,7 +77,7 @@ func TestGetUserByEmail(t *testing.T) {
 	t.Run("Returns not found when email does not exist", func(t *testing.T) {
 		db := newTestDB(t)
 
-		testEmail := "nonexistent@github.com/jcroyoaun/totalcompmx"
+		testEmail := "nonexistent@example.com"
 
 		user, found, err := db.GetUserByEmail(testEmail)
 		assert.Nil(t, err)

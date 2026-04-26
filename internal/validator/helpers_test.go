@@ -83,73 +83,63 @@ func TestMaxRunes(t *testing.T) {
 }
 
 func TestBetween(t *testing.T) {
-	t.Run("Integer values", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			value    int
-			min      int
-			max      int
-			expected bool
-		}{
-			{"Value within range", 5, 1, 10, true},
-			{"Value equals minimum", 1, 1, 10, true},
-			{"Value equals maximum", 10, 1, 10, true},
-			{"Value below range", 0, 1, 10, false},
-			{"Value above range", 11, 1, 10, false},
-			{"Single value range", 5, 5, 5, true},
-		}
+	t.Run("Integer values", testBetweenIntegers)
+	t.Run("String values", testBetweenStrings)
+	t.Run("Float values", testBetweenFloats)
+}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result := Between(tt.value, tt.min, tt.max)
-				assert.Equal(t, result, tt.expected)
-			})
-		}
-	})
+func testBetweenIntegers(t *testing.T) {
+	tests := []betweenTestCase[int]{
+		{"Value within range", 5, 1, 10, true},
+		{"Value equals minimum", 1, 1, 10, true},
+		{"Value equals maximum", 10, 1, 10, true},
+		{"Value below range", 0, 1, 10, false},
+		{"Value above range", 11, 1, 10, false},
+		{"Single value range", 5, 5, 5, true},
+	}
+	runBetweenTests(t, tests)
+}
 
-	t.Run("String values", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			value    string
-			min      string
-			max      string
-			expected bool
-		}{
-			{"String within range", "hello", "a", "z", true},
-			{"String equals minimum", "a", "a", "z", true},
-			{"String equals maximum", "z", "a", "z", true},
-			{"String below range", "A", "a", "z", false},
-			{"String above range", "zzz", "a", "z", false},
-		}
+func testBetweenStrings(t *testing.T) {
+	tests := []betweenTestCase[string]{
+		{"String within range", "hello", "a", "z", true},
+		{"String equals minimum", "a", "a", "z", true},
+		{"String equals maximum", "z", "a", "z", true},
+		{"String below range", "A", "a", "z", false},
+		{"String above range", "zzz", "a", "z", false},
+	}
+	runBetweenTests(t, tests)
+}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result := Between(tt.value, tt.min, tt.max)
-				assert.Equal(t, result, tt.expected)
-			})
-		}
-	})
+func testBetweenFloats(t *testing.T) {
+	tests := []betweenTestCase[float64]{
+		{"Float within range", 5.5, 1.0, 10.0, true},
+		{"Float below range", 0.5, 1.0, 10.0, false},
+		{"Float above range", 10.5, 1.0, 10.0, false},
+	}
+	runBetweenTests(t, tests)
+}
 
-	t.Run("Float values", func(t *testing.T) {
-		tests := []struct {
-			name     string
-			value    float64
-			min      float64
-			max      float64
-			expected bool
-		}{
-			{"Float within range", 5.5, 1.0, 10.0, true},
-			{"Float below range", 0.5, 1.0, 10.0, false},
-			{"Float above range", 10.5, 1.0, 10.0, false},
-		}
+type betweenTestCase[T ordered] struct {
+	name     string
+	value    T
+	min      T
+	max      T
+	expected bool
+}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				result := Between(tt.value, tt.min, tt.max)
-				assert.Equal(t, result, tt.expected)
-			})
-		}
-	})
+type ordered interface {
+	~int | ~string | ~float64
+}
+
+func runBetweenTests[T ordered](t *testing.T, tests []betweenTestCase[T]) {
+	t.Helper()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Between(tt.value, tt.min, tt.max)
+			assert.Equal(t, result, tt.expected)
+		})
+	}
 }
 
 func TestMatches(t *testing.T) {
@@ -163,7 +153,7 @@ func TestMatches(t *testing.T) {
 		{"Pattern no match", "world", "^hello$", false},
 		{"Digit pattern match", "123", "^\\d+$", true},
 		{"Digit pattern no match", "abc", "^\\d+$", false},
-		{"Email-like pattern", "test@github.com/jcroyoaun/totalcompmx", ".*@.*", true},
+		{"Email-like pattern", "test@example.com", ".*@.*", true},
 		{"Case sensitive match", "Hello", "^hello$", false},
 	}
 
@@ -292,17 +282,17 @@ func TestIsEmail(t *testing.T) {
 		value    string
 		expected bool
 	}{
-		{"Valid simple email", "test@github.com/jcroyoaun/totalcompmx", true},
-		{"Valid email with subdomain", "user@mail.github.com/jcroyoaun/totalcompmx", true},
+		{"Valid simple email", "test@example.com", true},
+		{"Valid email with subdomain", "user@mail.example.com", true},
 		{"Valid email with numbers", "user123@example.org", true},
-		{"Valid email with special chars", "user.name+tag@github.com/jcroyoaun/totalcompmx", true},
-		{"Invalid email no @", "testgithub.com/jcroyoaun/totalcompmx", false},
+		{"Valid email with special chars", "user.name+tag@example.com", true},
+		{"Invalid email no @", "testexample.com", false},
 		{"Invalid email no domain", "test@", false},
-		{"Invalid email no local", "@github.com/jcroyoaun/totalcompmx", false},
-		{"Invalid email multiple @", "test@@github.com/jcroyoaun/totalcompmx", false},
+		{"Invalid email no local", "@example.com", false},
+		{"Invalid email multiple @", "test@@example.com", false},
 		{"Empty string", "", false},
 		{"Just @", "@", false},
-		{"Too long email", strings.Repeat("a", 250) + "@github.com/jcroyoaun/totalcompmx", false},
+		{"Too long email", strings.Repeat("a", 250) + "@example.com", false},
 		{"Valid edge case length", strings.Repeat("a", 240) + "@ex.com", true},
 	}
 
@@ -320,18 +310,18 @@ func TestIsURL(t *testing.T) {
 		value    string
 		expected bool
 	}{
-		{"Valid HTTP URL", "http://github.com/jcroyoaun/totalcompmx", true},
-		{"Valid HTTPS URL", "https://github.com/jcroyoaun/totalcompmx", true},
-		{"Valid URL with path", "https://github.com/jcroyoaun/totalcompmx/path", true},
-		{"Valid URL with query", "https://github.com/jcroyoaun/totalcompmx?query=value", true},
-		{"Valid URL with port", "https://github.com/jcroyoaun/totalcompmx:8080", true},
-		{"Invalid URL no scheme", "github.com/jcroyoaun/totalcompmx", false},
+		{"Valid HTTP URL", "http://example.com", true},
+		{"Valid HTTPS URL", "https://example.com", true},
+		{"Valid URL with path", "https://example.com/path", true},
+		{"Valid URL with query", "https://example.com?query=value", true},
+		{"Valid URL with port", "https://example.com:8080", true},
+		{"Invalid URL no scheme", "example.com", false},
 		{"Invalid URL no host", "https://", false},
 		{"Invalid URL scheme only", "https", false},
 		{"Empty string", "", false},
 		{"Just scheme", "http://", false},
-		{"FTP URL", "ftp://files.github.com/jcroyoaun/totalcompmx", true},
-		{"Custom scheme", "custom://github.com/jcroyoaun/totalcompmx", true},
+		{"FTP URL", "ftp://files.example.com", true},
+		{"Custom scheme", "custom://example.com", true},
 	}
 
 	for _, tt := range tests {

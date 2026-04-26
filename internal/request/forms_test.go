@@ -20,7 +20,7 @@ func TestDecodePostForm(t *testing.T) {
 		form := url.Values{
 			"name":  []string{"Jane"},
 			"age":   []string{"25"},
-			"email": []string{"jane@github.com/jcroyoaun/totalcompmx"},
+			"email": []string{"jane@example.com"},
 		}
 
 		req := httptest.NewRequest("POST", "/test", strings.NewReader(form.Encode()))
@@ -31,7 +31,7 @@ func TestDecodePostForm(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, target.Name, "Jane")
 		assert.Equal(t, target.Age, 25)
-		assert.Equal(t, target.Email, "jane@github.com/jcroyoaun/totalcompmx")
+		assert.Equal(t, target.Email, "jane@example.com")
 	})
 
 	t.Run("Return error when form parsing fails", func(t *testing.T) {
@@ -61,14 +61,14 @@ func TestDecodePostForm(t *testing.T) {
 
 func TestDecodeQueryString(t *testing.T) {
 	t.Run("Decode valid query string successfully", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test?name=Bob&age=35&email=bob@github.com/jcroyoaun/totalcompmx", nil)
+		req := httptest.NewRequest("GET", "/test?name=Bob&age=35&email=bob@example.com", nil)
 
 		var target testDecodeFormTarget
 		err := DecodeQueryString(req, &target)
 		assert.Nil(t, err)
 		assert.Equal(t, target.Name, "Bob")
 		assert.Equal(t, target.Age, 35)
-		assert.Equal(t, target.Email, "bob@github.com/jcroyoaun/totalcompmx")
+		assert.Equal(t, target.Email, "bob@example.com")
 	})
 
 	t.Run("Decode empty query string to zero values", func(t *testing.T) {
@@ -83,12 +83,22 @@ func TestDecodeQueryString(t *testing.T) {
 	})
 
 	t.Run("Handle URL encoded query parameters", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/test?name=John%20Doe&email=john%2Bdoe%40github.com/jcroyoaun/totalcompmx", nil)
+		req := httptest.NewRequest("GET", "/test?name=John%20Doe&email=john%2Bdoe%40example.com", nil)
 
 		var target testDecodeFormTarget
 		err := DecodeQueryString(req, &target)
 		assert.Nil(t, err)
 		assert.Equal(t, target.Name, "John Doe")
-		assert.Equal(t, target.Email, "john+doe@github.com/jcroyoaun/totalcompmx")
+		assert.Equal(t, target.Email, "john+doe@example.com")
+	})
+}
+
+func TestDecodeURLValues(t *testing.T) {
+	t.Run("Panics for invalid decoder destination", func(t *testing.T) {
+		defer func() {
+			assert.NotNil(t, recover())
+		}()
+
+		_ = decodeURLValues(url.Values{}, nil)
 	})
 }

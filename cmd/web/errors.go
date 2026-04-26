@@ -4,8 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
-
-	"github.com/jcroyoaun/totalcompmx/internal/response"
 )
 
 func (app *application) reportServerError(r *http.Request, err error) {
@@ -26,8 +24,7 @@ func (app *application) reportServerError(r *http.Request, err error) {
 		data["RequestURL"] = url
 		data["Trace"] = trace
 
-		err := app.mailer.Send(app.config.notifications.email, data, "error-notification.tmpl")
-		if err != nil {
+		if err := sendMail(app.mailer, app.config.notifications.email, data, "error-notification.tmpl"); err != nil {
 			trace = string(debug.Stack())
 			app.logger.Error(err.Error(), requestAttrs, "trace", trace)
 		}
@@ -39,7 +36,7 @@ func (app *application) serverError(w http.ResponseWriter, r *http.Request, err 
 
 	data := app.newTemplateData(r)
 
-	err = response.Page(w, http.StatusInternalServerError, data, "pages/errors/500.tmpl")
+	err = responsePage(w, http.StatusInternalServerError, data, "pages/errors/500.tmpl")
 	if err != nil {
 		app.reportServerError(r, err)
 
@@ -51,7 +48,7 @@ func (app *application) serverError(w http.ResponseWriter, r *http.Request, err 
 func (app *application) notFound(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 
-	err := response.Page(w, http.StatusNotFound, data, "pages/errors/404.tmpl")
+	err := responsePage(w, http.StatusNotFound, data, "pages/errors/404.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -61,7 +58,7 @@ func (app *application) badRequest(w http.ResponseWriter, r *http.Request, err e
 	data := app.newTemplateData(r)
 	data["ErrorMessage"] = err.Error()
 
-	err = response.Page(w, http.StatusBadRequest, data, "pages/errors/400.tmpl")
+	err = responsePage(w, http.StatusBadRequest, data, "pages/errors/400.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -73,7 +70,7 @@ func (app *application) basicAuthenticationRequired(w http.ResponseWriter, r *ht
 	headers := make(http.Header)
 	headers.Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 
-	err := response.PageWithHeaders(w, http.StatusUnauthorized, data, headers, "pages/errors/401.tmpl")
+	err := responsePageWithHeaders(w, http.StatusUnauthorized, data, headers, "pages/errors/401.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/gob"
 	"flag"
 	"fmt"
@@ -21,6 +22,20 @@ import (
 	"github.com/lmittmann/tint"
 )
 
+var exitProcess = os.Exit
+var openDatabase = func(dsn string) (runDatabase, error) {
+	return database.New(dsn)
+}
+var buildApplication = func(logger *slog.Logger, cfg config, db runDatabase) *application {
+	return newApplication(logger, cfg, db.(*database.DB))
+}
+var sendMail = func(mailer *smtp.Mailer, recipient string, data any, patterns ...string) error {
+	return mailer.Send(recipient, data, patterns...)
+}
+var renewSessionToken = func(sessionManager *scs.SessionManager, ctx context.Context) error {
+	return sessionManager.RenewToken(ctx)
+}
+
 func init() {
 	// Register types for gob encoding (used by session manager)
 	gob.Register([]PackageInput{})
@@ -39,12 +54,13 @@ func main() {
 	logger := slog.New(tint.NewHandler(os.Stdout, &tint.Options{Level: slog.LevelDebug}))
 
 	var cfg config
-	
+
 	// Config Loading (Env Vars)
 	cfg.worker.banxicoToken = env.GetString("BANXICO_TOKEN", "")
 	cfg.worker.inegiToken = env.GetString("INEGI_TOKEN", "")
 	cfg.resend.apiKey = env.GetString("RESEND_API_KEY", "")
 	cfg.cookie.secretKey = env.GetString("COOKIE_SECRET_KEY", "v2zn7or6otz36wqjt7b2qkj2xj3g7ug5")
+	cfg.cookie.secure = env.GetBool("COOKIE_SECURE", true)
 
 	dbUser := env.GetString("DB_USER", "totalcomp_app")
 	dbPassword := env.GetString("DB_PASSWORD", "")
@@ -73,14 +89,16 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("version: %s\n", version.Get())
-		os.Exit(0)
+		exitProcess(0)
+		return
 	}
 
 	// Execution Logic
 	if err := run(logger, cfg, *task); err != nil {
 		trace := string(debug.Stack())
 		logger.Error(err.Error(), "trace", trace)
-		os.Exit(1)
+		exitProcess(1)
+		return
 	}
 }
 
@@ -98,6 +116,7 @@ type config struct {
 	}
 	cookie struct {
 		secretKey string
+		secure    bool
 	}
 	db struct {
 		dsn         string
@@ -121,7 +140,7 @@ type config struct {
 
 type application struct {
 	config         config
-	db             *database.DB
+	db             dataStore
 	logger         *slog.Logger
 	mailer         *smtp.Mailer
 	sessionManager *scs.SessionManager
@@ -129,79 +148,89 @@ type application struct {
 	wg             sync.WaitGroup
 }
 
+type runDatabase interface {
+	dataStore
+	Close() error
+	MonitorConnectionPool(context.Context) <-chan struct{}
+}
+
 func run(logger *slog.Logger, cfg config, task string) error {
-	db, err := database.New(cfg.db.dsn)
+	db, err := openDatabase(cfg.db.dsn)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	
-	// Start database connection pool monitoring
-	db.MonitorConnectionPool()
 
-	// Initialize mailer
-	var mailer *smtp.Mailer
+	monitorCtx, stopMonitoring := context.WithCancel(context.Background())
+	monitorDone := db.MonitorConnectionPool(monitorCtx)
+	defer func() {
+		stopMonitoring()
+		<-monitorDone
+	}()
+
+	app := buildApplication(logger, cfg, db)
+	return app.runTask(task)
+}
+
+func newApplication(logger *slog.Logger, cfg config, db *database.DB) *application {
+	return &application{
+		config:         cfg,
+		db:             db,
+		logger:         logger,
+		mailer:         newMailer(logger, cfg),
+		sessionManager: newSessionManager(cfg, db),
+		worker:         worker.New(db, logger, cfg.worker.banxicoToken, cfg.worker.inegiToken),
+	}
+}
+
+func newMailer(logger *slog.Logger, cfg config) *smtp.Mailer {
 	if cfg.resend.apiKey == "" {
 		logger.Warn("RESEND_API_KEY not set, using mock mailer")
-		mailer = smtp.NewMockMailer(cfg.resend.from)
-	} else {
-		mailer = smtp.NewMailer(cfg.resend.apiKey, cfg.resend.from)
+		return smtp.NewMockMailer(cfg.resend.from)
 	}
 
+	return smtp.NewMailer(cfg.resend.apiKey, cfg.resend.from)
+}
+
+func newSessionManager(cfg config, db *database.DB) *scs.SessionManager {
 	sessionManager := scs.New()
 	sessionManager.Store = postgresstore.New(db.DB.DB)
 	sessionManager.Lifetime = 7 * 24 * time.Hour
 	sessionManager.Cookie.Name = cfg.session.cookieName
-	sessionManager.Cookie.Secure = true
+	sessionManager.Cookie.Secure = cfg.cookie.secure
+	return sessionManager
+}
 
-	etlWorker := worker.New(db, logger, cfg.worker.banxicoToken, cfg.worker.inegiToken)
+type taskHandler func() error
 
-	app := &application{
-		config:         cfg,
-		db:             db,
-		logger:         logger,
-		mailer:         mailer,
-		sessionManager: sessionManager,
-		worker:         etlWorker,
+func (app *application) runTask(task string) error {
+	handler, ok := app.taskHandlers()[task]
+	if !ok {
+		return fmt.Errorf("unknown task: %s", task)
 	}
 
-	switch task {
-	case "server":
-		// Note: We do not start the background worker scheduler in server mode 
-		// because we use CronJobs for those tasks now.
-		
-		// Run migrations if automigrate is enabled (or we could rely on init container)
-		if cfg.db.automigrate {
-			if err = db.MigrateUp(); err != nil {
-				return err
-			}
-		}
+	return handler()
+}
 
-		if cfg.autoHTTPS.domain != "" {
-			return app.serveAutoHTTPS()
-		}
-		return app.serveHTTP()
+func (app *application) taskHandlers() map[string]taskHandler {
+	return map[string]taskHandler{
+		"server":        app.runServerTask,
+		"migrate":       app.db.MigrateUp,
+		"fetch-banxico": app.worker.FetchUSDMXN,
+		"fetch-uma":     app.worker.FetchUMA,
+	}
+}
 
-	case "migrate":
-		// Initialize DB connection done above
+func (app *application) runServerTask() error {
+	if app.config.db.automigrate {
 		if err := app.db.MigrateUp(); err != nil {
 			return err
 		}
-		return nil
-
-	case "fetch-banxico":
-		if err := app.worker.FetchUSDMXN(); err != nil {
-			return err
-		}
-		return nil
-
-	case "fetch-uma":
-		if err := app.worker.FetchUMA(); err != nil {
-			return err
-		}
-		return nil
-
-	default:
-		return fmt.Errorf("unknown task: %s", task)
 	}
+
+	if app.config.autoHTTPS.domain != "" {
+		return app.serveAutoHTTPS()
+	}
+
+	return app.serveHTTP()
 }

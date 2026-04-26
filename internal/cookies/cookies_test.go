@@ -2,6 +2,8 @@ package cookies
 
 import (
 	"encoding/base64"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,6 +51,13 @@ func TestWriteAndRead(t *testing.T) {
 
 		_, err := Read(req, "test")
 		assert.Equal(t, err, ErrInvalidValue)
+	})
+
+	t.Run("Returns error when cookie is missing", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+
+		_, err := Read(req, "missing")
+		assert.NotNil(t, err)
 	})
 }
 
@@ -127,6 +136,13 @@ func TestWriteSignedAndReadSigned(t *testing.T) {
 
 		_, err := ReadSigned(req, "test_cookie", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
 		assert.Equal(t, err, ErrInvalidValue)
+	})
+
+	t.Run("Returns error when signed cookie is missing", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+
+		_, err := ReadSigned(req, "missing", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+		assert.NotNil(t, err)
 	})
 }
 
@@ -209,4 +225,75 @@ func TestWriteEncryptedAndReadEncrypted(t *testing.T) {
 		_, err := ReadEncrypted(req, "test", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
 		assert.Equal(t, err, ErrInvalidValue)
 	})
+
+	t.Run("Returns error when encrypted cookie is missing", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+
+		_, err := ReadEncrypted(req, "missing", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+		assert.NotNil(t, err)
+	})
+
+	t.Run("Returns error for invalid encryption key", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		cookie := http.Cookie{Name: "test", Value: "value"}
+
+		err := WriteEncrypted(w, cookie, "short-key")
+		assert.NotNil(t, err)
+	})
+
+	t.Run("Returns error when nonce generation fails", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		cookie := http.Cookie{Name: "test", Value: "value"}
+
+		oldReader := randomReader
+		randomReader = errReader{}
+		defer func() { randomReader = oldReader }()
+
+		err := WriteEncrypted(w, cookie, "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+		assert.NotNil(t, err)
+	})
+
+	t.Run("Returns error when encrypted cookie key is invalid", func(t *testing.T) {
+		req := encryptedCookieRequest(t, "real_name", "value", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+		cookie := req.Cookies()[0]
+		cookie.Name = "wrong_name"
+		req.Header.Set("Cookie", cookie.String())
+
+		_, err := ReadEncrypted(req, "wrong_name", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+		assert.Equal(t, err, ErrInvalidValue)
+	})
+
+	t.Run("Returns error when encrypted cookie key cannot be created", func(t *testing.T) {
+		req := encryptedCookieRequest(t, "test", "value", "mySecretKeyAX7v2WqLpJ3nZcRYKtM9o")
+
+		_, err := ReadEncrypted(req, "test", "short-key")
+		assert.NotNil(t, err)
+	})
 }
+
+func TestEncryptedCookieValue(t *testing.T) {
+	t.Run("Returns ErrInvalidValue when plaintext has no separator", func(t *testing.T) {
+		_, err := encryptedCookieValue("missing-separator", "test")
+		assert.Equal(t, err, ErrInvalidValue)
+	})
+}
+
+type errReader struct{}
+
+func (errReader) Read(_ []byte) (int, error) {
+	return 0, errors.New("read failed")
+}
+
+func encryptedCookieRequest(t *testing.T, name string, value string, secretKey string) *http.Request {
+	t.Helper()
+
+	w := httptest.NewRecorder()
+	err := WriteEncrypted(w, http.Cookie{Name: name, Value: value}, secretKey)
+	assert.Nil(t, err)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(w.Result().Cookies()[0])
+	return req
+}
+
+var _ io.Reader = errReader{}

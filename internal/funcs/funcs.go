@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"math"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -52,32 +53,34 @@ func formatTime(format string, t time.Time) string {
 }
 
 func approxDuration(d time.Duration) string {
-	const (
-		day  = 24 * time.Hour
-		year = 365 * day
-	)
-
-	formatUnit := func(count int, singular, plural string) string {
-		if count == 1 {
-			return fmt.Sprintf("1 %s", singular)
+	for _, unit := range durationUnits {
+		if d >= unit.Duration {
+			return formatDurationUnit(d, unit)
 		}
-		return fmt.Sprintf("%d %s", count, plural)
 	}
+	return "less than 1 second"
+}
 
-	switch {
-	case d >= year:
-		return formatUnit(int(math.Round(float64(d)/float64(year))), "year", "years")
-	case d >= day:
-		return formatUnit(int(math.Round(float64(d)/float64(day))), "day", "days")
-	case d >= time.Hour:
-		return formatUnit(int(math.Round(d.Hours())), "hour", "hours")
-	case d >= time.Minute:
-		return formatUnit(int(math.Round(d.Minutes())), "minute", "minutes")
-	case d >= time.Second:
-		return formatUnit(int(math.Round(d.Seconds())), "second", "seconds")
-	default:
-		return "less than 1 second"
+type durationUnit struct {
+	Duration time.Duration
+	Singular string
+	Plural   string
+}
+
+var durationUnits = []durationUnit{
+	{Duration: 365 * 24 * time.Hour, Singular: "year", Plural: "years"},
+	{Duration: 24 * time.Hour, Singular: "day", Plural: "days"},
+	{Duration: time.Hour, Singular: "hour", Plural: "hours"},
+	{Duration: time.Minute, Singular: "minute", Plural: "minutes"},
+	{Duration: time.Second, Singular: "second", Plural: "seconds"},
+}
+
+func formatDurationUnit(d time.Duration, unit durationUnit) string {
+	count := int(math.Round(float64(d) / float64(unit.Duration)))
+	if count == 1 {
+		return fmt.Sprintf("1 %s", unit.Singular)
 	}
+	return fmt.Sprintf("%d %s", count, unit.Plural)
 }
 
 func pluralize(count any, singular string, plural string) (string, error) {
@@ -97,19 +100,41 @@ func slugify(s string) string {
 	var buf bytes.Buffer
 
 	for _, r := range s {
-		switch {
-		case r > unicode.MaxASCII:
-			continue
-		case unicode.IsLetter(r):
-			buf.WriteRune(unicode.ToLower(r))
-		case unicode.IsDigit(r), r == '_', r == '-':
-			buf.WriteRune(r)
-		case unicode.IsSpace(r):
-			buf.WriteRune('-')
+		if slug, ok := slugRune(r); ok {
+			buf.WriteRune(slug)
 		}
 	}
 
 	return buf.String()
+}
+
+func slugRune(r rune) (rune, bool) {
+	if r > unicode.MaxASCII {
+		return 0, false
+	}
+	return asciiSlugRune(r)
+}
+
+func asciiSlugRune(r rune) (rune, bool) {
+	if unicode.IsLetter(r) {
+		return unicode.ToLower(r), true
+	}
+	if isSlugLiteral(r) {
+		return r, true
+	}
+	if unicode.IsSpace(r) {
+		return '-', true
+	}
+	return 0, false
+}
+
+var slugLiteralRunes = map[rune]bool{'_': true, '-': true}
+
+func isSlugLiteral(r rune) bool {
+	if unicode.IsDigit(r) {
+		return true
+	}
+	return slugLiteralRunes[r]
 }
 
 func safeHTML(s string) template.HTML {
@@ -209,29 +234,25 @@ func dict(values ...any) (map[string]any, error) {
 }
 
 func toInt64(i any) (int64, error) {
-	switch v := i.(type) {
-	case int:
-		return int64(v), nil
-	case int8:
-		return int64(v), nil
-	case int16:
-		return int64(v), nil
-	case int32:
-		return int64(v), nil
-	case int64:
-		return v, nil
-	case uint:
-		return int64(v), nil
-	case uint8:
-		return int64(v), nil
-	case uint16:
-		return int64(v), nil
-	case uint32:
-		return int64(v), nil
+	return int64FromValue(reflect.ValueOf(i), i)
+}
 
-	case string:
-		return strconv.ParseInt(v, 10, 64)
+func int64FromValue(value reflect.Value, original any) (int64, error) {
+	if !value.IsValid() {
+		return 0, fmt.Errorf("unable to convert type %T to int", original)
 	}
+	if value.Kind() == reflect.String {
+		return strconv.ParseInt(value.String(), 10, 64)
+	}
+	return numericInt64(value, original)
+}
 
-	return 0, fmt.Errorf("unable to convert type %T to int", i)
+func numericInt64(value reflect.Value, original any) (int64, error) {
+	if value.CanInt() {
+		return value.Int(), nil
+	}
+	if value.CanUint() {
+		return int64(value.Uint()), nil
+	}
+	return 0, fmt.Errorf("unable to convert type %T to int", original)
 }

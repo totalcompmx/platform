@@ -7,7 +7,11 @@
                 <h3 style="color: white; font-weight: 700; font-size: 1.125rem; margin: 0 0 0.5rem 0;">💰 TotalComp MX</h3>
                 <p style="margin: 0; font-size: 0.875rem; line-height: 1.6;">
                     Comparador de compensación total para México.<br>
-                    Actualizada con las tablas ISR 2025, UMA ($3,439.46) y SMG ($278.80).
+                    {{with .FiscalYear}}
+                    Actualizada con las tablas ISR {{.Year}}, UMA (${{printf "%.2f" .UMAMonthly}}) y SMG (${{printf "%.2f" .SMGGeneral}}).
+                    {{else}}
+                    Actualizada con las tablas ISR vigentes.
+                    {{end}}
                 </p>
             </div>
             <div style="text-align: right; font-size: 0.75rem;">
@@ -20,7 +24,11 @@
         <div style="border-top: 1px solid: #1e293b; padding-top: 1.5rem; font-size: 0.75rem; text-align: justify; color: #64748b; line-height: 1.7;">
             <p style="margin: 0 0 0.75rem 0;">
                 <strong style="color: #fbbf24;">⚠️ Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. 
-                Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF 2025) 
+                {{with .FiscalYear}}
+                Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF {{.Year}})
+                {{else}}
+                Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF vigente)
+                {{end}}
                 pero <strong style="color: #94a3b8;">no constituyen asesoría fiscal, contable o legal profesional</strong>.
             </p>
             <p style="margin: 0 0 0.75rem 0;">
@@ -46,7 +54,11 @@
                 </a>
             </div>
             <div style="font-size: 0.7rem; color: #475569;">
-                &copy; 2025 TotalComp MX. Todos los derechos reservados. • Versión 2025 (Beta)
+                {{with .FiscalYear}}
+                &copy; {{.Year}} TotalComp MX. Todos los derechos reservados. • Versión {{.Year}} (Beta)
+                {{else}}
+                &copy; TotalComp MX. Todos los derechos reservados. • Versión Beta
+                {{end}}
             </div>
         </div>
     </div>

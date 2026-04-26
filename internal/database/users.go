@@ -8,15 +8,15 @@ import (
 )
 
 type User struct {
-	ID               int            `db:"id"`
-	Created          time.Time      `db:"created"`
-	Email            string         `db:"email"`
-	HashedPassword   string         `db:"hashed_password"`
-	ApiKey           sql.NullString `db:"api_key"`
-	ApiCallsCount    int            `db:"api_calls_count"`
-	ApiKeyCreatedAt  sql.NullTime   `db:"api_key_created_at"`
-	EmailVerified    bool           `db:"email_verified"`
-	EmailVerifiedAt  sql.NullTime   `db:"email_verified_at"`
+	ID              int            `db:"id"`
+	Created         time.Time      `db:"created"`
+	Email           string         `db:"email"`
+	HashedPassword  string         `db:"hashed_password"`
+	ApiKey          sql.NullString `db:"api_key"`
+	ApiCallsCount   int            `db:"api_calls_count"`
+	ApiKeyCreatedAt sql.NullTime   `db:"api_key_created_at"`
+	EmailVerified   bool           `db:"email_verified"`
+	EmailVerifiedAt sql.NullTime   `db:"email_verified_at"`
 }
 
 func (db *DB) InsertUser(email, hashedPassword string) (int, error) {

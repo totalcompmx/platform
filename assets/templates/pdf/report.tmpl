@@ -1,3 +1,6 @@
+{{template "pdf:document" .}}
+
+{{define "pdf:document"}}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -13,13 +16,7 @@
         }
 
         @page {
-            {{if eq (len .Packages) 1}}
-            size: A4 portrait;
-            margin: 15mm;
-            {{else}}
-            size: A4 landscape;
-            margin: 10mm;
-            {{end}}
+            {{template "pdf:page-layout" .}}
         }
 
         body {
@@ -325,22 +322,18 @@
     </div>
 
     <div class="title">
-        {{if eq (len .Packages) 1}}
-        Reporte de Compensación 2025
-        {{else}}
-        Comparación de Paquetes de Compensación 2025
-        {{end}}
+        {{template "pdf:title" .}}
     </div>
 
     <!-- Comparison Grid -->
-    <div class="comparison-grid {{if eq (len .Packages) 1}}single-mode{{else}}comparison-mode{{end}}">
+    <div class="comparison-grid {{template "pdf:grid-mode" .}}">
         {{range $idx, $pkg := .Packages}}
         <div class="package-card">
             <!-- Package Header -->
             <div class="package-header">
                 <div class="package-name">{{$pkg.Name}}</div>
                 <div class="package-regime">
-                    {{if eq $pkg.Input.Regime "resico"}}RESICO{{else}}Sueldos y Salarios{{end}}
+                    {{template "pdf:regime-label" $pkg}}
                 </div>
             </div>
 
@@ -371,181 +364,15 @@
             <div class="section">
                 <div class="section-title">💰 Desglose Mensual</div>
                 <div class="items-list">
-                    <div class="item">
-                        <div class="item-label">Salario Bruto</div>
-                        <div class="item-value neutral">${{formatFloat $pkg.Calculation.GrossSalary 2}}</div>
-                    </div>
-
-                    {{if gt $pkg.Calculation.ISRTax 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            (-) ISR
-                            {{if gt $pkg.Calculation.GrossSalary 0.0}}
-                            <span class="detail-badge">{{formatFloat (div (mul $pkg.Calculation.ISRTax 100.0) $pkg.Calculation.GrossSalary) 2}}%</span>
-                            {{end}}
-                        </div>
-                        <div class="item-value negative">-${{formatFloat $pkg.Calculation.ISRTax 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.SubsidioEmpleo 0.0}}
-                    <div class="item">
-                        <div class="item-label">(+) Subsidio al Empleo</div>
-                        <div class="item-value positive">+${{formatFloat $pkg.Calculation.SubsidioEmpleo 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.IMSSWorker 0.0}}
-                    <div class="item">
-                        <div class="item-label">(-) IMSS Trabajador</div>
-                        <div class="item-value negative">-${{formatFloat $pkg.Calculation.IMSSWorker 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.FondoAhorroEmployee 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            (-) Fondo de Ahorro
-                            {{if ne $pkg.Input.FondoAhorroPercent ""}}
-                            <span class="detail-badge">{{$pkg.Input.FondoAhorroPercent}}%</span>
-                            {{end}}
-                        </div>
-                        <div class="item-value negative">-${{formatFloat $pkg.Calculation.FondoAhorroEmployee 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.ValesDespensaMonthly 0.0}}
-                    <div class="item">
-                        <div class="item-label">(+) Vales de Despensa</div>
-                        <div class="item-value positive">+${{formatFloat $pkg.Calculation.ValesDespensaMonthly 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.UnpaidVacationLoss 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            (-) Vacaciones no pagadas
-                            {{if ne $pkg.Input.UnpaidVacationDays ""}}{{if ne $pkg.Input.UnpaidVacationDays "0"}}
-                            <span class="detail-badge">{{$pkg.Input.UnpaidVacationDays}} días</span>
-                            {{end}}{{end}}
-                        </div>
-                        <div class="item-value negative">-${{formatFloat $pkg.Calculation.UnpaidVacationLoss 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{range $pkg.Calculation.OtherBenefits}}
-                    {{if eq .Cadence "monthly"}}
-                    <div class="item">
-                        <div class="item-label">
-                            (+) {{.Name}}
-                            {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
-                        </div>
-                        <div class="item-value positive">+${{formatFloat .Net 2}}</div>
-                    </div>
-                    {{end}}
-                    {{end}}
-
-                    <div class="item total">
-                        <div class="item-label">= Neto Mensual</div>
-                        <div class="item-value">${{formatFloat $pkg.Calculation.NetSalary 2}}</div>
-                    </div>
-
-                    <div class="item" style="background: #d1fae5; border-top: 2px solid #059669; border-bottom: 2px solid #059669; margin-top: 4px; font-weight: 700;">
-                        <div class="item-label" style="color: #065f46; font-weight: 700;">✨ Neto Mensual Ajustado</div>
-                        <div class="item-value" style="color: #059669; font-size: 8.5pt; font-weight: 700;">${{formatFloat $pkg.Calculation.MonthlyAdjusted 2}}</div>
-                    </div>
+                    {{template "pdf:monthly-breakdown" $pkg}}
                 </div>
             </div>
 
             <!-- Annual Benefits -->
-            {{$hasAnnualBenefits := false}}
-            {{if gt $pkg.Calculation.AguinaldoNet 0.0}}{{$hasAnnualBenefits = true}}{{end}}
-            {{if gt $pkg.Calculation.PrimaVacacionalNet 0.0}}{{$hasAnnualBenefits = true}}{{end}}
-            {{if gt $pkg.Calculation.FondoAhorroYearly 0.0}}{{$hasAnnualBenefits = true}}{{end}}
-            {{range $pkg.Calculation.OtherBenefits}}{{if eq .Cadence "annual"}}{{$hasAnnualBenefits = true}}{{end}}{{end}}
-
-            {{if $hasAnnualBenefits}}
-            <div class="section">
-                <div class="section-title">🎁 Prestaciones Anuales</div>
-                <div class="items-list">
-                    {{if gt $pkg.Calculation.AguinaldoNet 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            🎄 Aguinaldo
-                            {{if ne $pkg.Input.AguinaldoDays ""}}
-                            <span class="detail-badge">{{$pkg.Input.AguinaldoDays}} días</span>
-                            {{end}}
-                        </div>
-                        <div class="item-value positive">${{formatFloat $pkg.Calculation.AguinaldoNet 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.PrimaVacacionalNet 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            🏖️ Prima Vacacional
-                            {{if and (ne $pkg.Input.VacationDays "") (ne $pkg.Input.PrimaVacacionalPercent "")}}
-                            <span class="detail-badge">{{$pkg.Input.VacationDays}} días @ {{$pkg.Input.PrimaVacacionalPercent}}%</span>
-                            {{end}}
-                        </div>
-                        <div class="item-value positive">${{formatFloat $pkg.Calculation.PrimaVacacionalNet 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.FondoAhorroYearly 0.0}}
-                    <div class="item">
-                        <div class="item-label">💰 Fondo de Ahorro <span class="detail-badge">retorno 2x</span></div>
-                        <div class="item-value positive">${{formatFloat $pkg.Calculation.FondoAhorroYearly 2}}</div>
-                    </div>
-                    {{end}}
-
-                    {{range $pkg.Calculation.OtherBenefits}}
-                    {{if eq .Cadence "annual"}}
-                    <div class="item">
-                        <div class="item-label">
-                            ✨ {{.Name}}
-                            {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
-                        </div>
-                        <div class="item-value positive">${{formatFloat .Net 2}}</div>
-                    </div>
-                    {{end}}
-                    {{end}}
-                </div>
-            </div>
-            {{end}}
+            {{template "pdf:annual-benefits" $pkg}}
 
             <!-- Employer Contributions -->
-            {{$hasEmployerContributions := false}}
-            {{if gt $pkg.Calculation.InfonavitEmployerMonthly 0.0}}{{$hasEmployerContributions = true}}{{end}}
-            {{if gt $pkg.Calculation.IMSSEmployerMonthly 0.0}}{{$hasEmployerContributions = true}}{{end}}
-
-            {{if $hasEmployerContributions}}
-            <div class="section">
-                <div class="section-title">💼 Aportaciones Patronales</div>
-                <div class="items-list">
-                    {{if gt $pkg.Calculation.InfonavitEmployerMonthly 0.0}}
-                    <div class="item">
-                        <div class="item-label">
-                            🏠 Infonavit (5%)
-                            {{if $pkg.Calculation.HasInfonavitCredit}}
-                            <span class="detail-badge">Abono crédito</span>
-                            {{else}}
-                            <span class="detail-badge">Ahorro</span>
-                            {{end}}
-                        </div>
-                        <div class="item-value neutral">${{formatFloat (mul $pkg.Calculation.InfonavitEmployerMonthly 12.0) 2}}/año</div>
-                    </div>
-                    {{end}}
-
-                    {{if gt $pkg.Calculation.IMSSEmployerMonthly 0.0}}
-                    <div class="item">
-                        <div class="item-label">🏥 IMSS Patronal</div>
-                        <div class="item-value neutral">${{formatFloat (mul $pkg.Calculation.IMSSEmployerMonthly 12.0) 2}}/año</div>
-                    </div>
-                    {{end}}
-                </div>
-            </div>
-            {{end}}
+            {{template "pdf:employer-contributions" $pkg}}
         </div>
         {{end}}
     </div>
@@ -561,4 +388,237 @@
     </div>
 </body>
 </html>
+{{end}}
 
+{{define "pdf:page-layout"}}
+{{if eq (len .Packages) 1}}
+size: A4 portrait;
+margin: 15mm;
+{{else}}
+size: A4 landscape;
+margin: 10mm;
+{{end}}
+{{end}}
+
+{{define "pdf:title"}}
+{{if eq (len .Packages) 1}}
+Reporte de Compensación 2025
+{{else}}
+Comparación de Paquetes de Compensación 2025
+{{end}}
+{{end}}
+
+{{define "pdf:grid-mode"}}
+{{if eq (len .Packages) 1}}single-mode{{else}}comparison-mode{{end}}
+{{end}}
+
+{{define "pdf:regime-label"}}
+{{if eq .Input.Regime "resico"}}RESICO{{else}}Sueldos y Salarios{{end}}
+{{end}}
+
+{{define "pdf:monthly-breakdown"}}
+<div class="item">
+    <div class="item-label">Salario Bruto</div>
+    <div class="item-value neutral">${{formatFloat .Calculation.GrossSalary 2}}</div>
+</div>
+{{template "pdf:isr-row" .}}
+{{template "pdf:subsidio-row" .}}
+{{template "pdf:imss-worker-row" .}}
+{{template "pdf:fondo-employee-row" .}}
+{{template "pdf:vales-row" .}}
+{{template "pdf:unpaid-vacation-row" .}}
+{{template "pdf:monthly-other-benefits" .}}
+<div class="item total">
+    <div class="item-label">= Neto Mensual</div>
+    <div class="item-value">${{formatFloat .Calculation.NetSalary 2}}</div>
+</div>
+<div class="item" style="background: #d1fae5; border-top: 2px solid #059669; border-bottom: 2px solid #059669; margin-top: 4px; font-weight: 700;">
+    <div class="item-label" style="color: #065f46; font-weight: 700;">✨ Neto Mensual Ajustado</div>
+    <div class="item-value" style="color: #059669; font-size: 8.5pt; font-weight: 700;">${{formatFloat .Calculation.MonthlyAdjusted 2}}</div>
+</div>
+{{end}}
+
+{{define "pdf:isr-row"}}
+{{if gt .Calculation.ISRTax 0.0}}
+<div class="item">
+    <div class="item-label">
+        (-) ISR
+        {{if gt .Calculation.GrossSalary 0.0}}
+        <span class="detail-badge">{{formatFloat (div (mul .Calculation.ISRTax 100.0) .Calculation.GrossSalary) 2}}%</span>
+        {{end}}
+    </div>
+    <div class="item-value negative">-${{formatFloat .Calculation.ISRTax 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:subsidio-row"}}
+{{if gt .Calculation.SubsidioEmpleo 0.0}}
+<div class="item">
+    <div class="item-label">(+) Subsidio al Empleo</div>
+    <div class="item-value positive">+${{formatFloat .Calculation.SubsidioEmpleo 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:imss-worker-row"}}
+{{if gt .Calculation.IMSSWorker 0.0}}
+<div class="item">
+    <div class="item-label">(-) IMSS Trabajador</div>
+    <div class="item-value negative">-${{formatFloat .Calculation.IMSSWorker 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:fondo-employee-row"}}
+{{if gt .Calculation.FondoAhorroEmployee 0.0}}
+<div class="item">
+    <div class="item-label">
+        (-) Fondo de Ahorro
+        {{if ne .Input.FondoAhorroPercent ""}}
+        <span class="detail-badge">{{.Input.FondoAhorroPercent}}%</span>
+        {{end}}
+    </div>
+    <div class="item-value negative">-${{formatFloat .Calculation.FondoAhorroEmployee 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:vales-row"}}
+{{if gt .Calculation.ValesDespensaMonthly 0.0}}
+<div class="item">
+    <div class="item-label">(+) Vales de Despensa</div>
+    <div class="item-value positive">+${{formatFloat .Calculation.ValesDespensaMonthly 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:unpaid-vacation-row"}}
+{{if gt .Calculation.UnpaidVacationLoss 0.0}}
+<div class="item">
+    <div class="item-label">
+        (-) Vacaciones no pagadas
+        {{if ne .Input.UnpaidVacationDays ""}}{{if ne .Input.UnpaidVacationDays "0"}}
+        <span class="detail-badge">{{.Input.UnpaidVacationDays}} días</span>
+        {{end}}{{end}}
+    </div>
+    <div class="item-value negative">-${{formatFloat .Calculation.UnpaidVacationLoss 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:monthly-other-benefits"}}
+{{range .Calculation.OtherBenefits}}
+{{if eq .Cadence "monthly"}}
+<div class="item">
+    <div class="item-label">
+        (+) {{.Name}}
+        {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
+    </div>
+    <div class="item-value positive">+${{formatFloat .Net 2}}</div>
+</div>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "pdf:annual-benefits"}}
+{{if hasAnnualBenefits .Calculation}}
+<div class="section">
+    <div class="section-title">🎁 Prestaciones Anuales</div>
+    <div class="items-list">
+        {{template "pdf:aguinaldo-row" .}}
+        {{template "pdf:prima-row" .}}
+        {{template "pdf:fondo-yearly-row" .}}
+        {{template "pdf:annual-other-benefits" .}}
+    </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:aguinaldo-row"}}
+{{if gt .Calculation.AguinaldoNet 0.0}}
+<div class="item">
+    <div class="item-label">
+        🎄 Aguinaldo
+        {{if ne .Input.AguinaldoDays ""}}
+        <span class="detail-badge">{{.Input.AguinaldoDays}} días</span>
+        {{end}}
+    </div>
+    <div class="item-value positive">${{formatFloat .Calculation.AguinaldoNet 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:prima-row"}}
+{{if gt .Calculation.PrimaVacacionalNet 0.0}}
+<div class="item">
+    <div class="item-label">
+        🏖️ Prima Vacacional
+        {{if and (ne .Input.VacationDays "") (ne .Input.PrimaVacacionalPercent "")}}
+        <span class="detail-badge">{{.Input.VacationDays}} días @ {{.Input.PrimaVacacionalPercent}}%</span>
+        {{end}}
+    </div>
+    <div class="item-value positive">${{formatFloat .Calculation.PrimaVacacionalNet 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:fondo-yearly-row"}}
+{{if gt .Calculation.FondoAhorroYearly 0.0}}
+<div class="item">
+    <div class="item-label">💰 Fondo de Ahorro <span class="detail-badge">retorno 2x</span></div>
+    <div class="item-value positive">${{formatFloat .Calculation.FondoAhorroYearly 2}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:annual-other-benefits"}}
+{{range .Calculation.OtherBenefits}}
+{{if eq .Cadence "annual"}}
+<div class="item">
+    <div class="item-label">
+        ✨ {{.Name}}
+        {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
+    </div>
+    <div class="item-value positive">${{formatFloat .Net 2}}</div>
+</div>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "pdf:employer-contributions"}}
+{{if hasEmployerContributions .Calculation}}
+<div class="section">
+    <div class="section-title">💼 Aportaciones Patronales</div>
+    <div class="items-list">
+        {{template "pdf:infonavit-row" .}}
+        {{template "pdf:imss-employer-row" .}}
+    </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:infonavit-row"}}
+{{if gt .Calculation.InfonavitEmployerMonthly 0.0}}
+<div class="item">
+    <div class="item-label">
+        🏠 Infonavit (5%)
+        {{if .Calculation.HasInfonavitCredit}}
+        <span class="detail-badge">Abono crédito</span>
+        {{else}}
+        <span class="detail-badge">Ahorro</span>
+        {{end}}
+    </div>
+    <div class="item-value neutral">${{formatFloat (mul .Calculation.InfonavitEmployerMonthly 12.0) 2}}/año</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "pdf:imss-employer-row"}}
+{{if gt .Calculation.IMSSEmployerMonthly 0.0}}
+<div class="item">
+    <div class="item-label">🏥 IMSS Patronal</div>
+    <div class="item-value neutral">${{formatFloat (mul .Calculation.IMSSEmployerMonthly 12.0) 2}}/año</div>
+</div>
+{{end}}
+{{end}}

@@ -1,121 +1,35 @@
 package pdf
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"html/template"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 
 	"github.com/jcroyoaun/totalcompmx/internal/database"
+	"github.com/jcroyoaun/totalcompmx/internal/pdfreport"
 )
 
-// OtherBenefit represents custom benefits
-type OtherBenefit struct {
-	Name     string
-	Amount   float64
-	TaxFree  bool
-	Currency string
-	Cadence  string
-}
+type OtherBenefit = pdfreport.OtherBenefit
+type PackageInput = pdfreport.PackageInput
+type PackageResult = pdfreport.PackageResult
+type ReportData = pdfreport.ReportData
 
-// PackageInput represents the input details for a package
-type PackageInput struct {
-	Name                    string
-	Regime                  string
-	Currency                string
-	ExchangeRate            string
-	PaymentFrequency        string
-	HoursPerWeek            string
-	GrossMonthlySalary      string
-	HasAguinaldo            bool
-	AguinaldoDays           string
-	HasValesDespensa        bool
-	ValesDespensaAmount     string
-	HasPrimaVacacional      bool
-	VacationDays            string
-	PrimaVacacionalPercent  string
-	HasFondoAhorro          bool
-	FondoAhorroPercent      string
-	UnpaidVacationDays      string
-	OtherBenefits           []OtherBenefit
-	// Equity fields
-	HasEquity               bool
-	InitialEquityUSD        string
-	HasRefreshers           bool
-	RefresherMinUSD         string
-	RefresherMaxUSD         string
-}
-
-// PackageResult represents a single package's calculation results
-type PackageResult struct {
-	Name        string
-	Input       PackageInput
-	Calculation *database.SalaryCalculation
-}
-
-// ReportData represents the data passed to the PDF template
-type ReportData struct {
-	Date     string
-	Packages []PackageResult
-}
+var renderComparisonHTML = pdfreport.RenderComparisonHTML
+var renderPDF = renderHTMLToPDF
+var newPDFRenderer = newChromePDFRenderer
 
 // GenerateComparisonReport generates a PDF by rendering an HTML template via Chrome
 func GenerateComparisonReport(packages []PackageResult, fiscalYear database.FiscalYear) ([]byte, error) {
-	// Prepare template data
-	data := ReportData{
-		Date:     time.Now().Format("02 Jan 2006"),
-		Packages: packages,
-	}
-
-	// Custom template functions
-	funcMap := template.FuncMap{
-		"formatFloat": func(f float64, decimals int) string {
-			// Format with thousands separator
-			formatted := fmt.Sprintf(fmt.Sprintf("%%.%df", decimals), f)
-			return addThousandsSeparator(formatted)
-		},
-		"div": func(a, b float64) float64 {
-			if b == 0 {
-				return 0
-			}
-			return a / b
-		},
-		"mul": func(a, b float64) float64 {
-			return a * b
-		},
-	}
-
-	// Find template path (works both in dev and production)
-	templatePath := "assets/templates/pdf/report.tmpl"
-	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		// Try from working directory
-		wd, _ := os.Getwd()
-		templatePath = filepath.Join(wd, templatePath)
-	}
-
-	// Parse the template
-	tmpl, err := template.New("report.tmpl").Funcs(funcMap).ParseFiles(templatePath)
+	htmlContent, err := renderComparisonHTML(packages)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse PDF template at %s: %w", templatePath, err)
+		return nil, err
 	}
 
-	// Render the template to HTML string
-	var htmlBuf bytes.Buffer
-	if err := tmpl.Execute(&htmlBuf, data); err != nil {
-		return nil, fmt.Errorf("failed to execute PDF template: %w", err)
-	}
-
-	htmlContent := htmlBuf.String()
-
-	// Generate PDF using Chrome
-	pdfBytes, err := renderHTMLToPDF(htmlContent)
+	pdfBytes, err := renderPDF(htmlContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render HTML to PDF: %w", err)
 	}
@@ -125,44 +39,39 @@ func GenerateComparisonReport(packages []PackageResult, fiscalYear database.Fisc
 
 // renderHTMLToPDF uses chromedp to render HTML to PDF
 func renderHTMLToPDF(htmlContent string) ([]byte, error) {
-	// Create Chrome context with options
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.DisableGPU,
-		chromedp.NoSandbox,
-		chromedp.Headless,
-	)
+	return newPDFRenderer().render(htmlContent)
+}
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer allocCancel()
+type chromePDFRenderer struct {
+	newExecAllocator  func(context.Context, ...chromedp.ExecAllocatorOption) (context.Context, context.CancelFunc)
+	newContext        func(context.Context, ...chromedp.ContextOption) (context.Context, context.CancelFunc)
+	withTimeout       func(context.Context, time.Duration) (context.Context, context.CancelFunc)
+	navigate          func(string) chromedp.Action
+	run               func(context.Context, ...chromedp.Action) error
+	frameTree         func(context.Context) (*page.FrameTree, error)
+	setDocument       func(context.Context, cdp.FrameID, string) error
+	printToPDF        func(context.Context) ([]byte, error)
+	sleep             func(time.Duration)
+	renderingDeadline time.Duration
+}
 
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
-
-	// Set timeout
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	var pdfBuf []byte
-
-	// Navigate to about:blank and set HTML content, then print to PDF
-	err := chromedp.Run(ctx,
-		chromedp.Navigate("about:blank"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Set the document content
-			frameTree, err := page.GetFrameTree().Do(ctx)
-			if err != nil {
-				return err
-			}
-
-			return page.SetDocumentContent(frameTree.Frame.ID, htmlContent).Do(ctx)
-		}),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Wait a bit for rendering
-			time.Sleep(500 * time.Millisecond)
-
-			// Print to PDF with options
-			var err error
-			pdfBuf, _, err = page.PrintToPDF().
+func newChromePDFRenderer() chromePDFRenderer {
+	return chromePDFRenderer{
+		newExecAllocator: chromedp.NewExecAllocator,
+		newContext:       chromedp.NewContext,
+		withTimeout:      context.WithTimeout,
+		navigate: func(location string) chromedp.Action {
+			return chromedp.Navigate(location)
+		},
+		run: chromedp.Run,
+		frameTree: func(ctx context.Context) (*page.FrameTree, error) {
+			return page.GetFrameTree().Do(ctx)
+		},
+		setDocument: func(ctx context.Context, frameID cdp.FrameID, htmlContent string) error {
+			return page.SetDocumentContent(frameID, htmlContent).Do(ctx)
+		},
+		printToPDF: func(ctx context.Context) ([]byte, error) {
+			pdfBuf, _, err := page.PrintToPDF().
 				WithPrintBackground(true).
 				WithPreferCSSPageSize(true).
 				WithScale(0.75).
@@ -171,6 +80,42 @@ func renderHTMLToPDF(htmlContent string) ([]byte, error) {
 				WithMarginLeft(0).
 				WithMarginRight(0).
 				Do(ctx)
+			return pdfBuf, err
+		},
+		sleep:             time.Sleep,
+		renderingDeadline: 30 * time.Second,
+	}
+}
+
+func (r chromePDFRenderer) render(htmlContent string) ([]byte, error) {
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.DisableGPU,
+		chromedp.NoSandbox,
+		chromedp.Headless,
+	)
+
+	allocCtx, allocCancel := r.newExecAllocator(context.Background(), opts...)
+	defer allocCancel()
+
+	ctx, cancel := r.newContext(allocCtx)
+	defer cancel()
+
+	ctx, cancel = r.withTimeout(ctx, r.renderingDeadline)
+	defer cancel()
+
+	return r.printHTML(ctx, htmlContent)
+}
+
+func (r chromePDFRenderer) printHTML(ctx context.Context, htmlContent string) ([]byte, error) {
+	var pdfBuf []byte
+	err := r.run(ctx,
+		r.navigate("about:blank"),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return r.setHTML(ctx, htmlContent)
+		}),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var err error
+			pdfBuf, err = r.print(ctx)
 			return err
 		}),
 	)
@@ -182,45 +127,16 @@ func renderHTMLToPDF(htmlContent string) ([]byte, error) {
 	return pdfBuf, nil
 }
 
-// addThousandsSeparator adds commas to number strings for readability
-func addThousandsSeparator(s string) string {
-	// Split by decimal point
-	parts := strings.Split(s, ".")
-	intPart := parts[0]
-	decPart := ""
-	if len(parts) > 1 {
-		decPart = "." + parts[1]
+func (r chromePDFRenderer) setHTML(ctx context.Context, htmlContent string) error {
+	frameTree, err := r.frameTree(ctx)
+	if err != nil {
+		return err
 	}
 
-	// Handle negative numbers
-	negative := false
-	if strings.HasPrefix(intPart, "-") {
-		negative = true
-		intPart = intPart[1:]
-	}
-
-	// Add commas every 3 digits from the right
-	var result []rune
-	for i, char := range reverse(intPart) {
-		if i > 0 && i%3 == 0 {
-			result = append(result, ',')
-		}
-		result = append(result, char)
-	}
-
-	finalInt := reverse(string(result))
-	if negative {
-		finalInt = "-" + finalInt
-	}
-
-	return finalInt + decPart
+	return r.setDocument(ctx, frameTree.Frame.ID, htmlContent)
 }
 
-// reverse reverses a string
-func reverse(s string) string {
-	runes := []rune(s)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
-	return string(runes)
+func (r chromePDFRenderer) print(ctx context.Context) ([]byte, error) {
+	r.sleep(500 * time.Millisecond)
+	return r.printToPDF(ctx)
 }

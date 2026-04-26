@@ -5,14 +5,10 @@
 {{- $showRemoveButton := .ShowRemoveButton -}}
 {{- $defaultChecked := .DefaultChecked -}}
 {{- $fiscalYear := .FiscalYear -}}
+{{- $pantryVouchersCap := $fiscalYear.UMAMonthly -}}
 
-<div id="package-{{add $index 1}}" style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 3px solid {{$borderColor}}; {{if eq $index 1}}display: none; {{end}}position: relative;" data-package-index="{{$index}}">
-    {{if $showRemoveButton}}
-    <!-- Remove Button -->
-    <button type="button" onclick="setComparisonMode(false)" style="position: absolute; top: 1rem; right: 1rem; background: #ef4444; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s ease; z-index: 10;" title="Quitar comparación" onmouseover="this.style.background='#dc2626'; this.style.transform='scale(1.1)';" onmouseout="this.style.background='#ef4444'; this.style.transform='scale(1)';">
-        🗑️
-    </button>
-    {{end}}
+<div id="package-{{add $index 1}}" style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 3px solid {{$borderColor}}; {{template "partials/package-form:package-display" $index}}position: relative;" data-package-index="{{$index}}">
+    {{template "partials/package-form:remove-button" .}}
     
     <div style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e2e8f0;">
         <input type="text" name="PackageName[]" placeholder="Nombre del paquete" value="{{$name}}" class="package-name-input" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-weight: 600; color: #1e293b;">
@@ -45,10 +41,10 @@
                 <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #1e293b; font-size: 0.875rem;" title="Tipo de cambio USD/MXN actualizado diariamente desde Banxico">
                     💱 Tipo de Cambio
                 </label>
-                <input type="text" name="ExchangeRate[]" placeholder="{{if $fiscalYear}}{{formatFloat $fiscalYear.USDMXNRate 4}}{{else}}20.00{{end}}" value="{{if $fiscalYear}}{{formatFloat $fiscalYear.USDMXNRate 4}}{{else}}{{end}}" class="money-input" style="width: 120px; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem;">
+                <input type="text" name="ExchangeRate[]" placeholder="{{template "partials/package-form:exchange-placeholder" $fiscalYear}}" value="{{template "partials/package-form:exchange-value" $fiscalYear}}" class="money-input" style="width: 120px; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem;">
                 <div style="margin-top: 0.5rem; padding: 0.5rem; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px;">
                     <div style="font-size: 0.7rem; color: #1e40af; line-height: 1.4;">
-                        💡 <strong>Tipo de cambio oficial Banxico:</strong> {{if $fiscalYear}}${{formatFloat $fiscalYear.USDMXNRate 4}}{{else}}$20.00{{end}} MXN/USD
+                        💡 <strong>Tipo de cambio oficial Banxico:</strong> {{template "partials/package-form:exchange-notice" $fiscalYear}} MXN/USD
                         <div style="margin-top: 0.25rem; font-size: 0.65rem; color: #64748b;">Actualizado automáticamente a las 14:00 CST</div>
                     </div>
                 </div>
@@ -93,26 +89,26 @@
     </div>
 
     <!-- Benefits Section (for Sueldos) -->
-    <div class="benefits-section-{{$index}}" style="{{if ne $index 0}}display: none; {{end}}background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+    <div class="benefits-section-{{$index}}" style="{{template "partials/package-form:benefits-display" $index}}background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
         <div style="font-size: 0.875rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem;">🎁 Prestaciones</div>
         
         <label style="display: flex; align-items: center; margin-bottom: 0.5rem; cursor: pointer; font-size: 0.875rem;">
-            <input type="checkbox" name="HasAguinaldo[]" value="{{$index}}" {{if $defaultChecked}}checked{{end}} style="margin-right: 0.5rem;">
+            <input type="checkbox" name="HasAguinaldo[]" value="{{$index}}" {{template "partials/package-form:checked" $defaultChecked}} style="margin-right: 0.5rem;">
             Aguinaldo <input type="number" name="AguinaldoDays[]" value="15" min="15" max="30" style="width: 60px; padding: 0.25rem; margin-left: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;"> días
         </label>
 
         <label style="display: flex; align-items: center; margin-bottom: 0.5rem; cursor: pointer; font-size: 0.875rem;">
-            <input type="checkbox" name="HasValesDespensa[]" value="{{$index}}" {{if $defaultChecked}}checked{{end}} style="margin-right: 0.5rem;">
-            Vales de despensa $<input type="text" name="ValesDespensaAmount[]" value="3439" class="money-input" placeholder="3,439" data-max="3439" style="width: 80px; padding: 0.25rem; margin-left: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;"> /mes
+            <input type="checkbox" name="HasValesDespensa[]" value="{{$index}}" {{template "partials/package-form:checked" $defaultChecked}} style="margin-right: 0.5rem;">
+            Vales de despensa $<input type="text" name="ValesDespensaAmount[]" value="{{printf "%.2f" $pantryVouchersCap}}" class="money-input" placeholder="{{printf "%.2f" $pantryVouchersCap}}" data-max="{{printf "%.2f" $pantryVouchersCap}}" style="width: 80px; padding: 0.25rem; margin-left: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;"> /mes
         </label>
 
         <label style="display: flex; align-items: center; margin-bottom: 0.5rem; cursor: pointer; font-size: 0.875rem;">
-            <input type="checkbox" name="HasPrimaVacacional[]" value="{{$index}}" {{if $defaultChecked}}checked{{end}} style="margin-right: 0.5rem;">
+            <input type="checkbox" name="HasPrimaVacacional[]" value="{{$index}}" {{template "partials/package-form:checked" $defaultChecked}} style="margin-right: 0.5rem;">
             Prima Vacacional: <input type="number" name="VacationDays[]" value="12" min="12" style="width: 50px; padding: 0.25rem; margin-left: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;"> días @ <input type="number" name="PrimaVacacionalPercent[]" value="25" min="25" style="width: 50px; padding: 0.25rem; margin-left: 0.25rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;">%
         </label>
 
         <label style="display: flex; align-items: center; cursor: pointer; font-size: 0.875rem;">
-            <input type="checkbox" name="HasFondoAhorro[]" value="{{$index}}" {{if $defaultChecked}}checked{{end}} style="margin-right: 0.5rem;">
+            <input type="checkbox" name="HasFondoAhorro[]" value="{{$index}}" {{template "partials/package-form:checked" $defaultChecked}} style="margin-right: 0.5rem;">
             Fondo de Ahorro <input type="number" name="FondoAhorroPercent[]" value="13" min="1" max="13" step="1" style="width: 50px; padding: 0.25rem; margin-left: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;">%
         </label>
 
@@ -218,3 +214,35 @@
 </div>
 {{end}}
 
+{{define "partials/package-form:package-display"}}
+{{if eq . 1}}display: none; {{end}}
+{{end}}
+
+{{define "partials/package-form:remove-button"}}
+{{if .ShowRemoveButton}}
+<!-- Remove Button -->
+<button type="button" onclick="setComparisonMode(false)" style="position: absolute; top: 1rem; right: 1rem; background: #ef4444; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s ease; z-index: 10;" title="Quitar comparación" onmouseover="this.style.background='#dc2626'; this.style.transform='scale(1.1)';" onmouseout="this.style.background='#ef4444'; this.style.transform='scale(1)';">
+    🗑️
+</button>
+{{end}}
+{{end}}
+
+{{define "partials/package-form:exchange-placeholder"}}
+{{if .}}{{formatFloat .USDMXNRate 4}}{{else}}20.00{{end}}
+{{end}}
+
+{{define "partials/package-form:exchange-value"}}
+{{if .}}{{formatFloat .USDMXNRate 4}}{{end}}
+{{end}}
+
+{{define "partials/package-form:exchange-notice"}}
+{{if .}}${{formatFloat .USDMXNRate 4}}{{else}}$20.00{{end}}
+{{end}}
+
+{{define "partials/package-form:benefits-display"}}
+{{if ne . 0}}display: none; {{end}}
+{{end}}
+
+{{define "partials/package-form:checked"}}
+{{if .}}checked{{end}}
+{{end}}

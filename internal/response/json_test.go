@@ -20,14 +20,14 @@ func TestJSON(t *testing.T) {
 		data := testJSONSource{
 			Name:  "John",
 			Age:   30,
-			Email: "john@github.com/jcroyoaun/totalcompmx",
+			Email: "john@example.com",
 		}
 
 		err := JSON(w, http.StatusTeapot, data)
 		assert.Nil(t, err)
 		assert.Equal(t, w.Code, http.StatusTeapot)
 		assert.Equal(t, w.Header().Get("Content-Type"), "application/json")
-		assert.Equal(t, w.Body.String(), "{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"email\": \"john@github.com/jcroyoaun/totalcompmx\"\n}\n")
+		assert.Equal(t, w.Body.String(), "{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"email\": \"john@example.com\"\n}\n")
 	})
 }
 
@@ -37,14 +37,14 @@ func TestJSONWithHeaders(t *testing.T) {
 		data := testJSONSource{
 			Name:  "John",
 			Age:   30,
-			Email: "john@github.com/jcroyoaun/totalcompmx",
+			Email: "john@example.com",
 		}
 
 		err := JSONWithHeaders(w, http.StatusTeapot, data, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, w.Code, http.StatusTeapot)
 		assert.Equal(t, w.Header().Get("Content-Type"), "application/json")
-		assert.Equal(t, w.Body.String(), "{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"email\": \"john@github.com/jcroyoaun/totalcompmx\"\n}\n")
+		assert.Equal(t, w.Body.String(), "{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"email\": \"john@example.com\"\n}\n")
 	})
 
 	t.Run("Return error for non-marshallable data", func(t *testing.T) {

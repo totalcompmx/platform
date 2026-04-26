@@ -24,30 +24,45 @@ func NamedTemplate(w http.ResponseWriter, status int, data any, templateName str
 }
 
 func NamedTemplateWithHeaders(w http.ResponseWriter, status int, data any, headers http.Header, templateName string, patterns ...string) error {
+	ts, err := parseEmbeddedTemplate(patterns)
+	if err != nil {
+		return err
+	}
+
+	buf, err := executeTemplate(ts, templateName, data)
+	if err != nil {
+		return err
+	}
+
+	writeHeaders(w, headers)
+	w.WriteHeader(status)
+	_, err = buf.WriteTo(w)
+	return err
+}
+
+func parseEmbeddedTemplate(patterns []string) (*template.Template, error) {
+	return template.New("").Funcs(funcs.TemplateFuncs).ParseFS(assets.EmbeddedFiles, embeddedTemplatePatterns(patterns)...)
+}
+
+func embeddedTemplatePatterns(patterns []string) []string {
+	embeddedPatterns := make([]string, len(patterns))
 	for i := range patterns {
-		patterns[i] = "templates/" + patterns[i]
+		embeddedPatterns[i] = "templates/" + patterns[i]
 	}
 
-	ts, err := template.New("").Funcs(funcs.TemplateFuncs).ParseFS(assets.EmbeddedFiles, patterns...)
-	if err != nil {
-		return err
-	}
+	return embeddedPatterns
+}
 
+func executeTemplate(ts *template.Template, templateName string, data any) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
+	err := ts.ExecuteTemplate(buf, templateName, data)
+	return buf, err
+}
 
-	err = ts.ExecuteTemplate(buf, templateName, data)
-	if err != nil {
-		return err
-	}
-
+func writeHeaders(w http.ResponseWriter, headers http.Header) {
 	for key, values := range headers {
 		for _, value := range values {
 			w.Header().Add(key, value)
 		}
 	}
-
-	w.WriteHeader(status)
-	buf.WriteTo(w)
-
-	return nil
 }

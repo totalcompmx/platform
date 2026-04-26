@@ -13,6 +13,15 @@ help:
 # QUALITY CONTROL
 # ==================================================================================== #
 
+GREMLINS_VERSION = v0.6.0
+GREMLINS = go run github.com/go-gremlins/gremlins/cmd/gremlins@$(GREMLINS_VERSION)
+MUTATION_PATH ?= .
+MUTATION_OUTPUT ?= /tmp/totalcompmx-gremlins.json
+MUTATION_WORKERS ?= 0
+MUTATION_TIMEOUT_COEFFICIENT ?= 5
+MUTATION_THRESHOLD_EFFICACY ?= 100
+MUTATION_THRESHOLD_MCOVER ?= 100
+
 ## audit: run quality control checks
 .PHONY: audit
 audit: test
@@ -23,12 +32,51 @@ audit: test
 	go run honnef.co/go/tools/cmd/staticcheck@latest -checks=all,-ST1000,-U1000 ./...
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-## test: run all tests
+## test: run unit tests
 .PHONY: test
-test:
+test: coverage/unit test/go test/js
+
+## test/go: run Go unit tests
+.PHONY: test/go
+test/go:
 	go test -v -race -buildvcs ./...
 
-## test/cover: run all tests and display coverage
+## test/integration: run tests that require external services
+.PHONY: test/integration
+test/integration:
+	go test -v -race -buildvcs -tags=integration ./...
+
+## test/js: run JavaScript unit tests
+.PHONY: test/js
+test/js:
+	node --test assets/static/js/*.test.mjs
+
+## coverage/unit: require 100% coverage for all Go unit packages
+.PHONY: coverage/unit
+coverage/unit:
+	go test ./... -covermode=count -coverprofile=/tmp/unit-coverage.out
+	go tool cover -func=/tmp/unit-coverage.out | tail -n 1 | grep -q '100.0%'
+
+## mutation/dry-run: discover Go mutants without executing mutation tests
+.PHONY: mutation/dry-run
+mutation/dry-run:
+	$(GREMLINS) unleash $(MUTATION_PATH) \
+		--dry-run \
+		--workers=$(MUTATION_WORKERS) \
+		--output-statuses=r \
+		--output=$(MUTATION_OUTPUT)
+
+## mutation: run Go mutation tests with configurable quality thresholds
+.PHONY: mutation
+mutation: test
+	$(GREMLINS) unleash $(MUTATION_PATH) \
+		--workers=$(MUTATION_WORKERS) \
+		--timeout-coefficient=$(MUTATION_TIMEOUT_COEFFICIENT) \
+		--threshold-efficacy=$(MUTATION_THRESHOLD_EFFICACY) \
+		--threshold-mcover=$(MUTATION_THRESHOLD_MCOVER) \
+		--output=$(MUTATION_OUTPUT)
+
+## test/cover: run unit tests and display coverage
 .PHONY: test/cover
 test/cover:
 	go test -v -race -buildvcs -coverprofile=/tmp/coverage.out ./...
@@ -102,4 +150,3 @@ migrations/force:
 .PHONY: migrations/version
 migrations/version:
 	go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path=./assets/migrations -database="postgres://${DB_DSN}" version
-

@@ -11,6 +11,8 @@ import (
 	"github.com/justinas/nosurf"
 )
 
+var readRandom = rand.Read
+
 func (app *application) newTemplateData(r *http.Request) map[string]any {
 	data := map[string]any{
 		"CSRFToken": nosurf.Token(r),
@@ -34,36 +36,38 @@ func (app *application) newEmailData() map[string]any {
 
 func (app *application) backgroundTask(r *http.Request, fn func() error) {
 	app.wg.Add(1)
+	go app.runBackgroundTask(r, fn)
+}
 
-	go func() {
-		defer app.wg.Done()
+func (app *application) runBackgroundTask(r *http.Request, fn func() error) {
+	defer app.wg.Done()
+	defer app.recoverBackgroundTask(r)
 
-		defer func() {
-			pv := recover()
-			if pv != nil {
-				app.reportServerError(r, fmt.Errorf("%v", pv))
-			}
-		}()
+	err := fn()
+	if err != nil {
+		app.reportServerError(r, err)
+	}
+}
 
-		err := fn()
-		if err != nil {
-			app.reportServerError(r, err)
-		}
-	}()
+func (app *application) recoverBackgroundTask(r *http.Request) {
+	pv := recover()
+	if pv != nil {
+		app.reportServerError(r, fmt.Errorf("%v", pv))
+	}
 }
 
 // generateSecureAPIKey generates a cryptographically secure random API key
 func (app *application) generateSecureAPIKey() (string, error) {
 	// Generate 32 random bytes
 	b := make([]byte, 32)
-	_, err := rand.Read(b)
+	_, err := readRandom(b)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Encode to base64 URL-safe format and remove padding
 	apiKey := base64.URLEncoding.EncodeToString(b)
-	
+
 	// Return first 43 characters (standard for 32-byte base64)
 	return apiKey[:43], nil
 }

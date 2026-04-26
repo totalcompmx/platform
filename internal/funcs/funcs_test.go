@@ -9,6 +9,15 @@ import (
 	"github.com/jcroyoaun/totalcompmx/internal/assert"
 )
 
+func assertExpectedError(t *testing.T, err error, expected bool) {
+	t.Helper()
+	if expected {
+		assert.NotNil(t, err)
+		return
+	}
+	assert.Nil(t, err)
+}
+
 func TestFormatTime(t *testing.T) {
 	testTime := time.Date(2024, 3, 15, 14, 30, 0, 0, time.UTC)
 
@@ -82,11 +91,7 @@ func TestPluralize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := pluralize(tt.count, tt.singular, tt.plural)
-			if tt.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assertExpectedError(t, err, tt.shouldErr)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -126,6 +131,26 @@ func TestSafeHTML(t *testing.T) {
 	})
 }
 
+func TestAdd(t *testing.T) {
+	t.Run("Adds integer-like values", func(t *testing.T) {
+		result, err := add(40, "2")
+		assert.Nil(t, err)
+		assert.Equal(t, int64(42), result)
+	})
+
+	t.Run("Returns error for invalid first value", func(t *testing.T) {
+		result, err := add("bad", 2)
+		assert.NotNil(t, err)
+		assert.Equal(t, int64(0), result)
+	})
+
+	t.Run("Returns error for invalid second value", func(t *testing.T) {
+		result, err := add(40, "bad")
+		assert.NotNil(t, err)
+		assert.Equal(t, int64(0), result)
+	})
+}
+
 func TestIncr(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -145,11 +170,7 @@ func TestIncr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := incr(tt.input)
-			if tt.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assertExpectedError(t, err, tt.shouldErr)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -174,11 +195,7 @@ func TestDecr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := decr(tt.input)
-			if tt.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assertExpectedError(t, err, tt.shouldErr)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -203,11 +220,7 @@ func TestFormatInt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := formatInt(tt.input)
-			if tt.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assertExpectedError(t, err, tt.shouldErr)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -252,6 +265,27 @@ func TestYesNo(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestDict(t *testing.T) {
+	t.Run("Builds map from key-value pairs", func(t *testing.T) {
+		result, err := dict("name", "Jane", "age", 30)
+		assert.Nil(t, err)
+		assert.Equal(t, "Jane", result["name"])
+		assert.Equal(t, 30, result["age"])
+	})
+
+	t.Run("Returns error for odd argument count", func(t *testing.T) {
+		result, err := dict("name")
+		assert.NotNil(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("Returns error for non-string key", func(t *testing.T) {
+		result, err := dict(1, "Jane")
+		assert.NotNil(t, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestUrlSetParam(t *testing.T) {
@@ -349,6 +383,7 @@ func TestToInt64(t *testing.T) {
 		{"string negative", "-123", -123, false},
 		{"invalid string", "invalid", 0, true},
 		{"empty string", "", 0, true},
+		{"nil", nil, 0, true},
 		{"float64", 3.14, 0, true},
 		{"bool", true, 0, true},
 	}
@@ -356,11 +391,7 @@ func TestToInt64(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := toInt64(tt.input)
-			if tt.shouldErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assertExpectedError(t, err, tt.shouldErr)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

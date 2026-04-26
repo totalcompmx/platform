@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jcroyoaun/totalcompmx/internal/assert"
+	"github.com/jcroyoaun/totalcompmx/internal/database"
 	"github.com/jcroyoaun/totalcompmx/internal/password"
 	"github.com/jcroyoaun/totalcompmx/internal/token"
 )
@@ -41,14 +42,14 @@ func TestSignup(t *testing.T) {
 		app := newTestApplication(t)
 
 		req := newTestRequest(t, http.MethodPost, "/signup")
-		req.PostForm.Add("Email", "zara@github.com/jcroyoaun/totalcompmx")
+		req.PostForm.Add("Email", "zara@example.com")
 		req.PostForm.Add("Password", "Zara_pw_fake00")
 
 		res := sendWithCSRFToken(t, req, app.routes())
 		assert.Equal(t, res.StatusCode, http.StatusSeeOther)
-		assert.Equal(t, res.Header.Get("Location"), "/restricted")
+		assert.Equal(t, res.Header.Get("Location"), "/account/developer")
 
-		user, found, err := app.db.GetUserByEmail("zara@github.com/jcroyoaun/totalcompmx")
+		user, found, err := app.db.GetUserByEmail("zara@example.com")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +70,7 @@ func TestSignup(t *testing.T) {
 			},
 			{
 				testName:     "Rejects empty password",
-				userEmail:    "zoe@github.com/jcroyoaun/totalcompmx",
+				userEmail:    "zoe@example.com",
 				userPassword: "",
 			},
 			{
@@ -79,17 +80,17 @@ func TestSignup(t *testing.T) {
 			},
 			{
 				testName:     "Rejects short password",
-				userEmail:    "zoe@github.com/jcroyoaun/totalcompmx",
+				userEmail:    "zoe@example.com",
 				userPassword: "k4k3dw9",
 			},
 			{
 				testName:     "Rejects password longer than 72 bytes",
-				userEmail:    "zoe@github.com/jcroyoaun/totalcompmx",
+				userEmail:    "zoe@example.com",
 				userPassword: "iRbMr5Av5T1DINST1l2pGBBUtW4Qn628N4lN6tFNjW8Ea4fuYiI84j2KH8tKQrF3INkqbKwZh",
 			},
 			{
 				testName:     "Rejects common password",
-				userEmail:    "zoe@github.com/jcroyoaun/totalcompmx",
+				userEmail:    "zoe@example.com",
 				userPassword: "sunshine",
 			},
 			{
@@ -142,7 +143,7 @@ func TestLogin(t *testing.T) {
 
 		res := sendWithCSRFToken(t, req, app.routes())
 		assert.Equal(t, res.StatusCode, http.StatusSeeOther)
-		assert.Equal(t, res.Header.Get("Location"), "/restricted")
+		assert.Equal(t, res.Header.Get("Location"), "/account/developer")
 
 		updatedSession := getTestSession(t, app.sessionManager, res.Cookies())
 		assert.True(t, updatedSession != nil)
@@ -173,7 +174,7 @@ func TestLogin(t *testing.T) {
 			},
 			{
 				testName:     "Rejects invalid email but valid password",
-				userEmail:    "zaha@github.com/jcroyoaun/totalcompmx",
+				userEmail:    "zaha@example.com",
 				userPassword: testUsers["alice"].password,
 			},
 			{
@@ -278,7 +279,7 @@ func TestForgottenPassword(t *testing.T) {
 			},
 			{
 				testName:  "Rejects non-existent user",
-				userEmail: "zion@github.com/jcroyoaun/totalcompmx",
+				userEmail: "zion@example.com",
 			},
 		}
 
@@ -312,123 +313,130 @@ func TestForgottenPasswordConfirmation(t *testing.T) {
 }
 
 func TestPasswordReset(t *testing.T) {
-	t.Run("GET renders the signup page", func(t *testing.T) {
-		app := newTestApplication(t)
+	t.Run("GET renders the signup page", testPasswordResetGet)
+	t.Run("GET with an invalid token doesn't display the form", testPasswordResetInvalidToken)
+	t.Run("POST updates the password and deletes all tokens for a user", testPasswordResetPostUpdatesPassword)
+	t.Run("POST rejects invalid data and re-displays the form", testPasswordResetRejectsInvalidData)
+}
 
-		plaintextToken := token.New()
-		hashedToken := token.Hash(plaintextToken)
-		err := app.db.InsertPasswordReset(hashedToken, testUsers["alice"].id, 24*time.Hour)
-		if err != nil {
-			t.Fatal(err)
-		}
+func testPasswordResetGet(t *testing.T) {
+	app := newTestApplication(t)
+	plaintextToken := insertPasswordResetForUser(t, app, testUsers["alice"].id)
+	req := newTestRequest(t, http.MethodGet, "/password-reset/"+plaintextToken)
 
-		req := newTestRequest(t, http.MethodGet, "/password-reset/"+plaintextToken)
+	res := send(t, req, app.routes())
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assertPasswordResetForm(t, res.Body, plaintextToken)
+}
 
-		res := send(t, req, app.routes())
-		assert.Equal(t, res.StatusCode, http.StatusOK)
-		assert.True(t, containsPageTag(t, res.Body, "password-reset"))
-		assert.True(t, containsHTMLNode(t, res.Body, fmt.Sprintf(`form[method="POST"][action="/password-reset/%s"]`, plaintextToken)))
-		assert.True(t, containsHTMLNode(t, res.Body, `input[type="hidden"][name="csrf_token"]`))
-	})
+func testPasswordResetInvalidToken(t *testing.T) {
+	app := newTestApplication(t)
+	req := newTestRequest(t, http.MethodGet, "/password-reset/Inval1dT0k3N")
 
-	t.Run("GET with an invalid token doesn't display the form", func(t *testing.T) {
-		app := newTestApplication(t)
+	res := send(t, req, app.routes())
+	assert.Equal(t, res.StatusCode, http.StatusUnprocessableEntity)
+	assert.True(t, containsPageTag(t, res.Body, "password-reset"))
+	assert.False(t, containsHTMLNode(t, res.Body, `form[method="POST"][action^="/password-reset/"]`))
+}
 
-		invalidToken := "Inval1dT0k3N"
-		req := newTestRequest(t, http.MethodGet, "/password-reset/"+invalidToken)
+func testPasswordResetPostUpdatesPassword(t *testing.T) {
+	app := newTestApplication(t)
+	plaintextToken := insertPasswordResetForUser(t, app, testUsers["alice"].id)
+	newPassword := "NewValidPassword123!"
+	req := passwordResetPostRequest(t, plaintextToken, newPassword)
 
-		res := send(t, req, app.routes())
-		assert.Equal(t, res.StatusCode, http.StatusUnprocessableEntity)
-		assert.True(t, containsPageTag(t, res.Body, "password-reset"))
-		assert.False(t, containsHTMLNode(t, res.Body, `form[method="POST"][action^="/password-reset/"]`))
-	})
+	res := sendWithCSRFToken(t, req, app.routes())
+	assert.Equal(t, res.StatusCode, http.StatusSeeOther)
+	assert.Equal(t, res.Header.Get("Location"), "/password-reset-confirmation")
+	assertPasswordUpdated(t, app, newPassword)
+	assertPasswordResetCount(t, app, testUsers["alice"].id, 0)
+}
 
-	t.Run("POST updates the password and deletes all tokens for a user", func(t *testing.T) {
-		app := newTestApplication(t)
+func testPasswordResetRejectsInvalidData(t *testing.T) {
+	for _, tt := range invalidPasswordResetCases() {
+		t.Run(tt.testName, func(t *testing.T) {
+			assertInvalidPasswordReset(t, tt.newPassword)
+		})
+	}
+}
 
-		plaintextToken := token.New()
-		hashedToken := token.Hash(plaintextToken)
-		err := app.db.InsertPasswordReset(hashedToken, testUsers["alice"].id, 24*time.Hour)
-		if err != nil {
-			t.Fatal(err)
-		}
+type invalidPasswordResetCase struct {
+	testName    string
+	newPassword string
+}
 
-		newPassword := "NewValidPassword123!"
+func invalidPasswordResetCases() []invalidPasswordResetCase {
+	return []invalidPasswordResetCase{
+		{testName: "Rejects empty password", newPassword: ""},
+		{testName: "Rejects short password", newPassword: "k4k3dw9"},
+		{testName: "Rejects password longer than 72 bytes", newPassword: "iRbMr5Av5T1DINST1l2pGBBUtW4Qn628N4lN6tFNjW8Ea4fuYiI84j2KH8tKQrF3INkqbKwZh"},
+		{testName: "Rejects common password", newPassword: "sunshine"},
+	}
+}
 
-		req := newTestRequest(t, http.MethodPost, "/password-reset/"+plaintextToken)
-		req.PostForm.Add("NewPassword", newPassword)
+func assertInvalidPasswordReset(t *testing.T, newPassword string) {
+	app := newTestApplication(t)
+	plaintextToken := insertPasswordResetForUser(t, app, testUsers["alice"].id)
+	req := passwordResetPostRequest(t, plaintextToken, newPassword)
 
-		res := sendWithCSRFToken(t, req, app.routes())
-		assert.Equal(t, res.StatusCode, http.StatusSeeOther)
-		assert.Equal(t, res.Header.Get("Location"), "/password-reset-confirmation")
+	res := sendWithCSRFToken(t, req, app.routes())
+	assert.Equal(t, res.StatusCode, http.StatusUnprocessableEntity)
+	assertPasswordResetForm(t, res.Body, plaintextToken)
+}
 
-		user, found, err := app.db.GetUserByEmail(testUsers["alice"].email)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !found {
-			t.Fatal(fmt.Errorf("test user with email %s not found", testUsers["alice"].email))
-		}
+func insertPasswordResetForUser(t *testing.T, app *application, userID int) string {
+	t.Helper()
+	plaintextToken := token.New()
+	err := app.db.InsertPasswordReset(token.Hash(plaintextToken), userID, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plaintextToken
+}
 
-		passwordMatches, err := password.Matches(newPassword, user.HashedPassword)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.True(t, passwordMatches)
+func passwordResetPostRequest(t *testing.T, plaintextToken string, newPassword string) *http.Request {
+	req := newTestRequest(t, http.MethodPost, "/password-reset/"+plaintextToken)
+	req.PostForm.Add("NewPassword", newPassword)
+	return req
+}
 
-		var count int
-		err = app.db.Get(&count, "SELECT COUNT(*) FROM password_resets WHERE user_id = $1", user.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, count, 0)
-	})
+func assertPasswordResetForm(t *testing.T, body string, plaintextToken string) {
+	t.Helper()
+	assert.True(t, containsPageTag(t, body, "password-reset"))
+	assert.True(t, containsHTMLNode(t, body, `form[method="POST"]`))
+	assert.True(t, containsHTMLNode(t, body, `input[type="hidden"][name="csrf_token"]`))
+}
 
-	t.Run("POST rejects invalid data and re-displays the form", func(t *testing.T) {
-		tests := []struct {
-			testName    string
-			newPassword string
-		}{
-			{
-				testName:    "Rejects empty password",
-				newPassword: "",
-			},
-			{
-				testName:    "Rejects short password",
-				newPassword: "k4k3dw9",
-			},
-			{
-				testName:    "Rejects password longer than 72 bytes",
-				newPassword: "iRbMr5Av5T1DINST1l2pGBBUtW4Qn628N4lN6tFNjW8Ea4fuYiI84j2KH8tKQrF3INkqbKwZh",
-			},
-			{
-				testName:    "Rejects common password",
-				newPassword: "sunshine",
-			},
-		}
+func assertPasswordUpdated(t *testing.T, app *application, newPassword string) {
+	t.Helper()
+	user := mustUserByEmail(t, app, testUsers["alice"].email)
+	passwordMatches, err := password.Matches(newPassword, user.HashedPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.True(t, passwordMatches)
+}
 
-		for _, tt := range tests {
-			t.Run(tt.testName, func(t *testing.T) {
-				app := newTestApplication(t)
+func mustUserByEmail(t *testing.T, app *application, email string) database.User {
+	t.Helper()
+	user, found, err := app.db.GetUserByEmail(email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal(fmt.Errorf("test user with email %s not found", email))
+	}
+	return user
+}
 
-				plaintextToken := token.New()
-				hashedToken := token.Hash(plaintextToken)
-				err := app.db.InsertPasswordReset(hashedToken, testUsers["alice"].id, 24*time.Hour)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				req := newTestRequest(t, http.MethodPost, "/password-reset/"+plaintextToken)
-				req.PostForm.Add("NewPassword", tt.newPassword)
-
-				res := sendWithCSRFToken(t, req, app.routes())
-				assert.Equal(t, res.StatusCode, http.StatusUnprocessableEntity)
-				assert.True(t, containsPageTag(t, res.Body, "password-reset"))
-				assert.True(t, containsHTMLNode(t, res.Body, fmt.Sprintf(`form[method="POST"][action="/password-reset/%s"]`, plaintextToken)))
-				assert.True(t, containsHTMLNode(t, res.Body, `input[type="hidden"][name="csrf_token"]`))
-			})
-		}
-	})
+func assertPasswordResetCount(t *testing.T, app *application, userID int, expected int) {
+	t.Helper()
+	store, ok := app.db.(*fakeStore)
+	if !ok {
+		t.Fatal("test application is not using fakeStore")
+	}
+	count := store.passwordResetCount(userID)
+	assert.Equal(t, count, expected)
 }
 
 func TestPasswordResetConfirmation(t *testing.T) {

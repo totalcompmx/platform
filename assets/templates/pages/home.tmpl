@@ -32,58 +32,71 @@
 
 {{define "page:main"}}
 <div style="width: 100%; padding: 1.5rem; box-sizing: border-box;">
-    <!-- Header -->
-    <div style="text-align: center; margin-bottom: 2rem; max-width: 780px; margin-left: auto; margin-right: auto;">
-        <h1 style="font-size: 2.5rem; color: #0f172a; margin-bottom: 0.75rem; margin-top: 0; font-weight: 700;">
-            💰 Calculadora de Sueldo & Comparador
-        </h1>
-        <p style="font-size: 1.25rem; color: #10b981; margin: 0 0 0.5rem 0; font-weight: 600;">
-            Tu salario real, sin letras chiquitas
-        </p>
-        <p style="font-size: 0.875rem; color: #6366f1; margin: 0 0 0.5rem 0; font-weight: 500; font-style: italic;">
-            Ideal para Ingenieros, Freelancers y Contractors.
-        </p>
-        <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
-            Compara ofertas laborales lado a lado • Sueldos y Salarios vs RESICO • ISR 2025 • IMSS • UMA • Prestaciones
-        </p>
-    </div>
+    {{template "home:header" .}}
+    {{template "home:calculator-form" .}}
+    {{template "home:results" .}}
+    {{template "home:info-box" .}}
+</div>
+{{template "home:script-config" .}}
+<script src="/static/js/home.js" defer></script>
+{{end}}
 
-    <!-- Comparison Container -->
-    <form action="/" method="POST" novalidate>
-        <input type='hidden' name='csrf_token' value='{{.CSRFToken}}'>
-        
-        {{if .PackageInputs}}
-        <!-- Hidden inputs to preserve form values -->
-        {{range $idx, $pkg := .PackageInputs}}
-        <input type="hidden" id="saved-pkg-{{$idx}}-name" value="{{$pkg.Name}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-regime" value="{{$pkg.Regime}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-currency" value="{{$pkg.Currency}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-exchange-rate" value="{{$pkg.ExchangeRate}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-payment-freq" value="{{$pkg.PaymentFrequency}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-hours" value="{{$pkg.HoursPerWeek}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-salary" value="{{$pkg.GrossMonthlySalary}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-aguinaldo" value="{{$pkg.HasAguinaldo}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-aguinaldo-days" value="{{$pkg.AguinaldoDays}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-vales" value="{{$pkg.HasValesDespensa}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-vales-amount" value="{{$pkg.ValesDespensaAmount}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-prima" value="{{$pkg.HasPrimaVacacional}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-vacation-days" value="{{$pkg.VacationDays}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-prima-percent" value="{{$pkg.PrimaVacacionalPercent}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-fondo" value="{{$pkg.HasFondoAhorro}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-fondo-percent" value="{{$pkg.FondoAhorroPercent}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-unpaid-vacation" value="{{$pkg.UnpaidVacationDays}}">
-        <!-- Equity -->
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-equity" value="{{$pkg.HasEquity}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-initial-equity" value="{{$pkg.InitialEquityUSD}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-has-refreshers" value="{{$pkg.HasRefreshers}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-refresher-min" value="{{$pkg.RefresherMinUSD}}">
-        <input type="hidden" id="saved-pkg-{{$idx}}-refresher-max" value="{{$pkg.RefresherMaxUSD}}">
-        <!-- Otras prestaciones -->
-        {{range $jdx, $benefit := $pkg.OtherBenefits}}
-        <input type="hidden" class="saved-other-benefit-{{$idx}}" data-name="{{$benefit.Name}}" data-amount="{{$benefit.Amount}}" data-taxfree="{{$benefit.TaxFree}}" data-currency="{{$benefit.Currency}}" data-cadence="{{$benefit.Cadence}}" data-ispercentage="{{$benefit.IsPercentage}}">
-        {{end}}
-        {{end}}
-        {{end}}
+{{define "home:header"}}
+<!-- Header -->
+<div style="text-align: center; margin-bottom: 2rem; max-width: 780px; margin-left: auto; margin-right: auto;">
+    <h1 style="font-size: 2.5rem; color: #0f172a; margin-bottom: 0.75rem; margin-top: 0; font-weight: 700;">
+        💰 Calculadora de Sueldo & Comparador
+    </h1>
+    <p style="font-size: 1.25rem; color: #10b981; margin: 0 0 0.5rem 0; font-weight: 600;">
+        Tu salario real, sin letras chiquitas
+    </p>
+    <p style="font-size: 0.875rem; color: #6366f1; margin: 0 0 0.5rem 0; font-weight: 500; font-style: italic;">
+        Ideal para Ingenieros, Freelancers y Contractors.
+    </p>
+    <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
+        Compara ofertas laborales lado a lado • Sueldos y Salarios vs RESICO • ISR 2025 • IMSS • UMA • Prestaciones
+    </p>
+</div>
+{{end}}
+
+{{define "home:saved-inputs"}}
+{{if .PackageInputs}}
+<!-- Hidden inputs to preserve form values -->
+{{range $idx, $pkg := .PackageInputs}}
+<input type="hidden" id="saved-pkg-{{$idx}}-name" value="{{$pkg.Name}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-regime" value="{{$pkg.Regime}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-currency" value="{{$pkg.Currency}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-exchange-rate" value="{{$pkg.ExchangeRate}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-payment-freq" value="{{$pkg.PaymentFrequency}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-hours" value="{{$pkg.HoursPerWeek}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-salary" value="{{$pkg.GrossMonthlySalary}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-aguinaldo" value="{{$pkg.HasAguinaldo}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-aguinaldo-days" value="{{$pkg.AguinaldoDays}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-vales" value="{{$pkg.HasValesDespensa}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-vales-amount" value="{{$pkg.ValesDespensaAmount}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-prima" value="{{$pkg.HasPrimaVacacional}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-vacation-days" value="{{$pkg.VacationDays}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-prima-percent" value="{{$pkg.PrimaVacacionalPercent}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-fondo" value="{{$pkg.HasFondoAhorro}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-fondo-percent" value="{{$pkg.FondoAhorroPercent}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-unpaid-vacation" value="{{$pkg.UnpaidVacationDays}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-equity" value="{{$pkg.HasEquity}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-initial-equity" value="{{$pkg.InitialEquityUSD}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-has-refreshers" value="{{$pkg.HasRefreshers}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-refresher-min" value="{{$pkg.RefresherMinUSD}}">
+<input type="hidden" id="saved-pkg-{{$idx}}-refresher-max" value="{{$pkg.RefresherMaxUSD}}">
+{{range $jdx, $benefit := $pkg.OtherBenefits}}
+<input type="hidden" class="saved-other-benefit-{{$idx}}" data-name="{{$benefit.Name}}" data-amount="{{$benefit.Amount}}" data-taxfree="{{$benefit.TaxFree}}" data-currency="{{$benefit.Currency}}" data-cadence="{{$benefit.Cadence}}" data-ispercentage="{{$benefit.IsPercentage}}">
+{{end}}
+{{end}}
+{{end}}
+{{end}}
+
+{{define "home:calculator-form"}}
+<!-- Comparison Container -->
+<form action="/" method="POST" novalidate>
+    <input type='hidden' name='csrf_token' value='{{.CSRFToken}}'>
+    {{template "home:saved-inputs" .}}
         
         <!-- Packages Wrapper (Grid + Add Button) -->
         <div id="packagesWrapper" style="margin-bottom: 2rem; position: relative;">
@@ -129,10 +142,12 @@
             </button>
         </div>
     </form>
+{{end}}
 
-    <!-- Results Section -->
-    {{if .Results}}
-    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dbeafe 100%); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+{{define "home:results"}}
+<!-- Results Section -->
+{{if .Results}}
+<div style="background: linear-gradient(135deg, #f0fdf4 0%, #dbeafe 100%); padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2rem;">
         <h2 style="text-align: center; color: #059669; margin-bottom: 2rem; font-size: 2rem;">
             📊 Comparación de Resultados
         </h2>
@@ -142,7 +157,7 @@
             {{range $idx, $result := .Results}}
             <div style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 <h3 style="color: #2563eb; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 2px solid #e2e8f0;">
-                    {{if $result.PackageName}}{{$result.PackageName}}{{else}}Paquete {{add $idx 1}}{{end}}
+                    {{template "home:result-title" (dict "Index" $idx "Result" $result)}}
                 </h3>
 
                 <!-- Key Metrics -->
@@ -170,272 +185,11 @@
 
                 <!-- Detailed Breakdown -->
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 2px solid #e2e8f0;">
-                    <h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem;">💰 Desglose Mensual:</h4>
-                    
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-                        <tr style="border-bottom: 2px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">Salario Bruto</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 600;">
-                                ${{formatFloat $result.GrossSalary 2}}
-                            </td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">(-) ISR</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">
-                                -${{formatFloat $result.ISRTax 2}}
-                            </td>
-                        </tr>
-                        {{if $result.SubsidioEmpleo}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
-                            <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">(+) Subsidio al Empleo</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                +${{formatFloat $result.SubsidioEmpleo 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.IMSSWorker}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">(-) IMSS Trabajador</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">
-                                -${{formatFloat $result.IMSSWorker 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.FondoAhorroEmployee}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">(-) Fondo de Ahorro (empleado)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">
-                                -${{formatFloat $result.FondoAhorroEmployee 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.ValesDespensaMonthly}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
-                            <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">(+) Vales de Despensa</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                +${{formatFloat $result.ValesDespensaMonthly 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{range $result.OtherBenefits}}
-                        {{if eq .Cadence "monthly"}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
-                            <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">
-                                (+) {{.Name}} {{if .TaxFree}}<span style="font-size: 0.65rem; background: #dcfce7; color: #166534; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">Libre ISR</span>{{end}} <span style="font-size: 0.7rem; color: #64748b;">(mensual)</span>
-                            </td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                +${{formatFloat .Net 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{end}}
-                        <tr style="border-top: 2px solid #2563eb; background: #eff6ff;">
-                            <td style="padding: 0.5rem 0; font-weight: 700; color: #2563eb;">Neto Mensual</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #2563eb;">
-                                ${{formatFloat $result.NetSalary 2}}
-                            </td>
-                        </tr>
-                    </table>
-
-                    {{if or $result.AguinaldoNet $result.PrimaVacacionalNet $result.FondoAhorroYearly (gt (len $result.OtherBenefits) 0)}}
-                    <h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-top: 1.5rem; margin-bottom: 0.75rem;">🎁 Prestaciones Anuales:</h4>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-                        {{if $result.AguinaldoNet}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">🎄 Aguinaldo (neto)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                ${{formatFloat $result.AguinaldoNet 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.PrimaVacacionalNet}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">🏖️ Prima Vacacional (neto)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                ${{formatFloat $result.PrimaVacacionalNet 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.FondoAhorroYearly}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">💰 Fondo de Ahorro (retorno 2x)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                ${{formatFloat $result.FondoAhorroYearly 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{range $result.OtherBenefits}}
-                        {{if eq .Cadence "annual"}}
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 0.5rem 0; color: #64748b;">
-                                ✨ {{.Name}} {{if .TaxFree}}<span style="font-size: 0.65rem; background: #dcfce7; color: #166534; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">Libre ISR</span>{{end}} <span style="font-size: 0.7rem; color: #64748b;">(anual)</span>
-                            </td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">
-                                ${{formatFloat .Net 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{end}}
-                    </table>
-                    {{end}}
-
-                    <h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-top: 1.5rem; margin-bottom: 0.75rem;">📊 Totales Anuales:</h4>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-                        {{if $result.YearlyGrossBase}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #fef3c7;">
-                            <td style="padding: 0.5rem 0; color: #92400e; font-weight: 600;">Bruto Anual (solo salario)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #92400e;">
-                                ${{formatFloat $result.YearlyGrossBase 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.InfonavitEmployerAnnual}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #fef9c3;">
-                            <td style="padding: 0.5rem 0; color: #854d0e; font-weight: 500;">
-                                {{if $result.HasInfonavitCredit}}
-                                    🏠 (+) Abono a Capital (Patrón 5%)
-                                    <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
-                                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.25rem;">(Tu patrón paga esto directo a tu deuda)</div>
-                                {{else}}
-                                    🐷 (+) Ahorro Vivienda (Patrón 5%)
-                                    <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
-                                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.25rem;">(Tu patrón deposita esto en tu Subcuenta/Afore)</div>
-                                {{end}}
-                            </td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ca8a04; font-weight: 600;">
-                                +${{formatFloat $result.InfonavitEmployerAnnual 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        {{if $result.IMSSEmployerAnnual}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #fef9c3;">
-                            <td style="padding: 0.5rem 0; color: #854d0e; font-weight: 500;">
-                                (+) IMSS Patronal
-                                <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
-                            </td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ca8a04; font-weight: 600;">
-                                +${{formatFloat $result.IMSSEmployerAnnual 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        <tr style="border-bottom: 2px solid #6366f1; background: #eef2ff;">
-                            <td style="padding: 0.5rem 0; color: #4338ca; font-weight: 700;">💰 Comp Total Anual</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #4338ca;">
-                                ${{formatFloat $result.YearlyGross 2}}
-                            </td>
-                        </tr>
-                        {{if $result.UnpaidVacationLoss}}
-                        <tr style="border-bottom: 1px solid #e2e8f0; background: #fee2e2;">
-                            <td style="padding: 0.5rem 0; color: #991b1b; font-weight: 500;">
-                                (-) Ingreso no percibido por vacaciones
-                                <span style="font-size: 0.7rem; color: #64748b;">({{$result.UnpaidVacationDays}} días)</span>
-                            </td>
-                            <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">
-                                -${{formatFloat $result.UnpaidVacationLoss 2}}
-                            </td>
-                        </tr>
-                        {{end}}
-                        <tr style="border-top: 2px solid #7c3aed; background: #faf5ff;">
-                            <td style="padding: 0.5rem 0; font-weight: 700; color: #7c3aed;">Neto Anual Total</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #7c3aed;">
-                                ${{formatFloat $result.YearlyNet 2}}
-                            </td>
-                        </tr>
-                        <tr style="border-top: 2px solid #059669; background: #f0fdf4;">
-                            <td style="padding: 0.5rem 0; font-weight: 700; color: #059669;">Neto Mensual Ajustado (÷ 12)</td>
-                            <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #059669; font-size: 0.9rem;">
-                                ${{formatFloat $result.MonthlyAdjusted 2}}
-                            </td>
-                        </tr>
-                    </table>
-                    <div style="margin-top: 0.5rem; padding: 0.5rem; background: #f0fdf4; border-radius: 4px; font-size: 0.7rem; color: #059669;">
-                        💡 <strong>Neto Mensual Ajustado:</strong> Incluye prestaciones anuales prorrateadas mensualmente. Mejor métrica para comparar poder adquisitivo real.
-                    </div>
-
-                    {{if $result.SBC}}
-                    <div style="margin-top: 1rem; padding: 0.75rem; background: #f1f5f9; border-radius: 6px; font-size: 0.75rem; color: #475569;">
-                        <strong>📌 Info:</strong> SBC Diario: ${{formatFloat $result.SBC 2}}
-                    </div>
-                    {{end}}
-                    
-                    <!-- Equity Breakdown -->
-                    {{if $result.EquityConfig}}
-                    <div style="margin-top: 1.5rem; padding: 1.5rem; background: #f8fafc; border-radius: 8px; border: 2px solid #3b82f6;">
-                        <h4 style="margin: 0 0 1rem 0; color: #0f172a; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                            📈 Equity Breakdown (4 Years)
-                        </h4>
-                        
-                        <div style="margin-bottom: 1rem; font-size: 0.75rem; color: #64748b;">
-                            <strong>Initial Grant:</strong> ${{printf "%.0f" $result.EquityConfig.InitialGrantUSD}} USD
-                            {{if $result.EquityConfig.HasRefreshers}}
-                            <br><strong>Annual Refreshers:</strong> ${{printf "%.0f" $result.EquityConfig.RefresherMinUSD}}-${{printf "%.0f" $result.EquityConfig.RefresherMaxUSD}} USD
-                            {{end}}
-                            <br><strong>Exchange Rate:</strong> ${{printf "%.4f" $.FiscalYear.USDMXNRate}} MXN/USD
-                            <span style="font-size: 0.65rem; color: #94a3b8;">(Actualizado desde Banxico)</span>
-                        </div>
-                        
-                        <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; border-radius: 8px; overflow: hidden;">
-                            <thead>
-                                <tr style="background: #0f172a; color: white;">
-                                    <th style="padding: 0.75rem; text-align: left; border-right: 1px solid #334155;">Año</th>
-                                    <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Grant Inicial</th>
-                                    {{if $result.EquityConfig.HasRefreshers}}
-                                    <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Refreshers</th>
-                                    <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Nuevo Grant</th>
-                                    {{end}}
-                                    <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Total USD</th>
-                                    <th style="padding: 0.75rem; text-align: right;">Total MXN</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {{range $result.EquitySchedule}}
-                                <tr style="border-bottom: 1px solid #e2e8f0; {{if eq .Year 0}}background: #eff6ff;{{end}}">
-                                    <td style="padding: 0.75rem; font-weight: 600; border-right: 1px solid #f1f5f9;">
-                                        Año {{.Year}}
-                                        {{if eq .Year 0}}
-                                        <span style="font-size: 0.7rem; color: #3b82f6; font-weight: normal;">(Ingreso)</span>
-                                        {{end}}
-                                    </td>
-                                    
-                                    {{if eq .Year 0}}
-                                        <!-- Special handling for Year 0 -->
-                                        <td colspan="{{if $result.EquityConfig.HasRefreshers}}5{{else}}3{{end}}" style="padding: 1rem; text-align: center; color: #1e40af; font-style: italic; border-left: 3px solid #3b82f6;">
-                                            💼 Grant otorgado: <strong>${{formatFloat $result.EquityConfig.InitialGrantUSD 0}} USD</strong> — Nada veste hasta cumplir 1 año
-                                        </td>
-                                    {{else}}
-                                        <!-- Normal years 1+ -->
-                                        <td style="padding: 0.75rem; text-align: right; border-right: 1px solid #f1f5f9;">${{formatFloat .InitialGrantVested 0}}</td>
-                                        {{if $result.EquityConfig.HasRefreshers}}
-                                        <td style="padding: 0.75rem; text-align: right; border-right: 1px solid #f1f5f9;">
-                                            ${{formatFloat .RefresherTotal 0}}
-                                        </td>
-                                        <td style="padding: 0.75rem; text-align: right; color: #10b981; border-right: 1px solid #f1f5f9;">
-                                            {{if .NewRefresherGranted}}
-                                                {{if gt .NewRefresherGranted 0.0}}
-                                                +${{formatFloat .NewRefresherGranted 0}}
-                                                {{else}}
-                                                -
-                                                {{end}}
-                                            {{else}}
-                                            -
-                                            {{end}}
-                                        </td>
-                                        {{end}}
-                                        <td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #2563eb; border-right: 1px solid #f1f5f9;">${{formatFloat .TotalVested 0}}</td>
-                                        <td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #059669;">
-                                            ${{formatFloat .TotalVestedMXN 2}}
-                                        </td>
-                                    {{end}}
-                                </tr>
-                                {{end}}
-                            </tbody>
-                        </table>
-                        
-                        <div style="margin-top: 1rem; padding: 0.75rem; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 0.7rem; color: #1e40af;">
-                            💡 <strong>Nota:</strong> Los refreshers se otorgan anualmente y vesten a lo largo de 4 años. El tipo de cambio utilizado es el oficial de Banxico actualizado diariamente.
-                        </div>
-                    </div>
-                    {{end}}
+                    {{template "home:monthly-breakdown" $result}}
+                    {{template "home:annual-benefits" $result}}
+                    {{template "home:annual-totals" $result}}
+                    {{template "home:sbc-info" $result}}
+                    {{template "home:equity-breakdown" (dict "Result" $result "FiscalYear" $.FiscalYear)}}
                 </div>
             </div>
             {{end}}
@@ -457,728 +211,338 @@
         </div>
 
     </div>
-    
-    <!-- Info Box -->
-    <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 1.25rem; border-radius: 8px; font-size: 0.875rem; color: #1e40af;">
-        <strong>💡 Tip:</strong> El "Neto Mensual Ajustado" incluye las prestaciones anuales divididas entre 12 meses. Es una mejor métrica para comparar tu poder adquisitivo real.
-    </div>
-    {{end}}
-</div>
-
-<script>
-let benefitCounters = [0, 0]; // Counters for each package
-
-function toggleRegime(select, index) {
-    const benefitsSection = document.querySelector(`.benefits-section-${index}`);
-    const currencySelection = document.querySelector(`.currency-selection-${index}`);
-    const paymentFreqSelect = document.querySelector(`.payment-frequency-select-${index}`);
-    const unpaidVacationDiv = document.querySelector(`.unpaid-vacation-${index}`);
-    
-    if (!paymentFreqSelect) return;
-    
-    // Store current value BEFORE any changes
-    const currentFreq = paymentFreqSelect.value;
-    
-    if (select.value === 'resico') {
-        // RESICO: Hide benefits, show currency and unpaid vacation
-        benefitsSection.style.display = 'none';
-        currencySelection.style.display = 'block';
-        if (unpaidVacationDiv) unpaidVacationDiv.style.display = 'block';
-        benefitsSection.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-        
-        // Enable all options for RESICO
-        Array.from(paymentFreqSelect.options).forEach(option => {
-            option.style.display = '';
-            option.disabled = false;
-        });
-    } else {
-        // Sueldos y Salarios: Show benefits, hide currency and unpaid vacation
-        benefitsSection.style.display = 'block';
-        currencySelection.style.display = 'none';
-        if (unpaidVacationDiv) unpaidVacationDiv.style.display = 'none';
-        benefitsSection.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
-        
-        // FORCE currency to MXN for Sueldos y Salarios (always MXN in Mexico)
-        const currencySelect = document.querySelectorAll('select[name="Currency[]"]')[index];
-        if (currencySelect) {
-            currencySelect.value = 'MXN';
-        }
-        
-        // Hide exchange rate input for Sueldos y Salarios
-        const exchangeRateDiv = document.querySelector(`.exchange-rate-input-${index}`);
-        if (exchangeRateDiv) {
-            exchangeRateDiv.style.display = 'none';
-        }
-        
-        // Hide Banxico notice
-        const exchangeRateDisplay = document.querySelector(`.exchange-rate-display-${index}`);
-        if (exchangeRateDisplay) {
-            exchangeRateDisplay.style.display = 'none';
-        }
-        
-        // Disable daily and hourly for Sueldos y Salarios
-        Array.from(paymentFreqSelect.options).forEach(option => {
-            if (option.value === 'daily' || option.value === 'hourly') {
-                option.style.display = 'none';
-                option.disabled = true;
-            } else {
-                option.style.display = '';
-                option.disabled = false;
-            }
-        });
-        
-        // If current selection is invalid for Sueldos, reset to monthly
-        if (currentFreq === 'daily' || currentFreq === 'hourly') {
-            paymentFreqSelect.value = 'monthly';
-        }
-    }
-    
-    // Ensure the value is preserved
-    if (paymentFreqSelect.value !== currentFreq && 
-        Array.from(paymentFreqSelect.options).some(opt => opt.value === currentFreq && !opt.disabled)) {
-        paymentFreqSelect.value = currentFreq;
-    }
-    
-    // Update salary label based on current frequency
-    toggleSalaryLabel(paymentFreqSelect, index);
-}
-
-function toggleExchangeRate(select, index) {
-    const exchangeRateInput = document.querySelector(`.exchange-rate-input-${index}`);
-    if (select.value === 'USD') {
-        exchangeRateInput.style.display = 'block';
-    } else {
-        exchangeRateInput.style.display = 'none';
-    }
-}
-
-function toggleSalaryLabel(select, index) {
-    const salaryLabel = document.querySelector(`.salary-label-${index}`);
-    const hoursPerWeek = document.querySelector(`.hours-per-week-${index}`);
-    
-    switch(select.value) {
-        case 'hourly':
-            salaryLabel.textContent = '💰 Tarifa Por Hora';
-            hoursPerWeek.style.display = 'block';
-            break;
-        case 'daily':
-            salaryLabel.textContent = '💰 Salario Diario';
-            hoursPerWeek.style.display = 'none';
-            break;
-        case 'weekly':
-            salaryLabel.textContent = '💰 Salario Semanal';
-            hoursPerWeek.style.display = 'none';
-            break;
-        case 'biweekly':
-            salaryLabel.textContent = '💰 Salario Quincenal';
-            hoursPerWeek.style.display = 'none';
-            break;
-        case 'monthly':
-        default:
-            salaryLabel.textContent = '💰 Salario Bruto';
-            hoursPerWeek.style.display = 'none';
-            break;
-    }
-}
-
-function addBenefit(packageIndex, savedBenefit = null) {
-    benefitCounters[packageIndex]++;
-    const container = document.getElementById(`otherBenefits-${packageIndex}`);
-    const benefitId = `benefit-${packageIndex}-${benefitCounters[packageIndex]}`;
-    
-    const benefitDiv = document.createElement('div');
-    benefitDiv.id = benefitId;
-    benefitDiv.style.cssText = 'display: flex; flex-direction: column; gap: 0; background: white; padding: 0.5rem; border-radius: 6px; border: 1px solid #e2e8f0;';
-    
-    const name = savedBenefit ? savedBenefit.name : '';
-    // Format amount with commas if it exists
-    let amount = '';
-    if (savedBenefit && savedBenefit.amount) {
-        amount = formatNumber(savedBenefit.amount.toString());
-    }
-    const taxFree = savedBenefit ? savedBenefit.taxFree : false;
-    const currency = savedBenefit ? savedBenefit.currency : 'MXN';
-    const cadence = savedBenefit ? savedBenefit.cadence : 'monthly';
-    const isPercentage = savedBenefit ? (savedBenefit.isPercentage || false) : false;
-    
-    benefitDiv.innerHTML = `
-        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; width: 100%;">
-            <input type="text" name="OtherBenefitName-${packageIndex}[]" placeholder="Ej: Bono anual" value="${name}" style="flex: 1; min-width: 120px; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;">
-            
-            <select name="OtherBenefitType-${packageIndex}[]" class="benefit-type-select" onchange="toggleBenefitInputType('${benefitId}')" style="width: 110px; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; background: #f8fafc;">
-                <option value="fixed" ${!isPercentage ? 'selected' : ''}>💵 Monto fijo</option>
-                <option value="percentage" ${isPercentage ? 'selected' : ''}>📊 % Salario</option>
-            </select>
-            
-            <div class="benefit-amount-container" style="display: flex; gap: 0.25rem; align-items: center;">
-                <input type="text" name="OtherBenefitAmount-${packageIndex}[]" placeholder="${isPercentage ? '10' : '$1,500'}" value="${amount}" class="money-input benefit-amount-input" data-benefit-id="${benefitId}" style="width: 90px; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem;">
-                <span class="percentage-label" style="display: ${isPercentage ? 'inline' : 'none'}; font-size: 0.75rem; color: #64748b; font-weight: 600;">%</span>
-            </div>
-            
-            <select name="OtherBenefitCurrency-${packageIndex}[]" class="benefit-currency-select" onchange="toggleBenefitBanxicoNotice('${benefitId}')" style="width: 70px; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; ${isPercentage ? 'display: none;' : ''}">
-                <option value="MXN" ${currency === 'MXN' ? 'selected' : ''}>MXN</option>
-                <option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option>
-            </select>
-            
-            <select name="OtherBenefitCadence-${packageIndex}[]" class="benefit-cadence-select" style="width: 90px; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.7rem; ${isPercentage ? 'display: none;' : ''}">
-                <option value="monthly" ${cadence === 'monthly' ? 'selected' : ''}>Mensual</option>
-                <option value="annual" ${cadence === 'annual' ? 'selected' : ''}>Anual</option>
-            </select>
-            
-            <!-- Hidden input for percentage bonuses (always annual) -->
-            <input type="hidden" name="OtherBenefitCadence-${packageIndex}[]" class="benefit-cadence-hidden" value="annual" style="display: ${isPercentage ? 'inline' : 'none'};">
-            <span class="percentage-cadence-label" style="display: ${isPercentage ? 'inline' : 'none'}; font-size: 0.7rem; color: #64748b; font-weight: 500; padding: 0.5rem; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;">📅 Anual</span>
-            
-            <label style="display: flex; align-items: center; white-space: nowrap; font-size: 0.7rem; cursor: pointer;">
-                <input type="checkbox" name="OtherBenefitTaxFree-${packageIndex}[]" value="${benefitCounters[packageIndex]}" ${taxFree ? 'checked' : ''} style="margin-right: 0.25rem;">
-                Libre ISR
-            </label>
-            
-            <button type="button" onclick="removeBenefit('${benefitId}')" style="background: #ef4444; color: white; padding: 0.35rem 0.5rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.7rem;">🗑️</button>
-        </div>
-        
-        <div id="banxico-notice-${benefitId}" class="banxico-notice" style="display: ${currency === 'USD' && !isPercentage ? 'block' : 'none'}; width: 100%; margin-top: 0.5rem; padding: 0.5rem; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px;">
-            <div style="font-size: 0.65rem; color: #1e40af; line-height: 1.4;">
-                💡 <strong>Tipo de cambio oficial Banxico:</strong> {{if .FiscalYear}}${{formatFloat .FiscalYear.USDMXNRate 4}}{{else}}$20.00{{end}} MXN/USD
-                <div style="margin-top: 0.25rem; font-size: 0.6rem; color: #64748b;">Actualizado automáticamente a las 14:00 CST</div>
-            </div>
-        </div>
-    `;
-    container.appendChild(benefitDiv);
-    
-    // Attach comma formatting to money inputs (but not for percentage inputs)
-    const moneyInputs = benefitDiv.querySelectorAll('.money-input');
-    attachCommaFormatting(moneyInputs);
-}
-
-function removeBenefit(benefitId) {
-    const element = document.getElementById(benefitId);
-    if (element) {
-        element.remove();
-    }
-}
-
-function toggleBenefitInputType(benefitId) {
-    const benefitDiv = document.getElementById(benefitId);
-    if (!benefitDiv) return;
-    
-    const typeSelect = benefitDiv.querySelector('.benefit-type-select');
-    const amountInput = benefitDiv.querySelector('.benefit-amount-input');
-    const percentageLabel = benefitDiv.querySelector('.percentage-label');
-    const currencySelect = benefitDiv.querySelector('.benefit-currency-select');
-    const cadenceSelect = benefitDiv.querySelector('.benefit-cadence-select');
-    const cadenceHidden = benefitDiv.querySelector('.benefit-cadence-hidden');
-    const percentageCadenceLabel = benefitDiv.querySelector('.percentage-cadence-label');
-    const banxicoNotice = document.getElementById(`banxico-notice-${benefitId}`);
-    
-    if (!typeSelect || !amountInput) return;
-    
-    const isPercentage = typeSelect.value === 'percentage';
-    
-    // Clear the input value when switching types
-    amountInput.value = '';
-    
-    if (isPercentage) {
-        // Percentage mode
-        amountInput.placeholder = '10';
-        percentageLabel.style.display = 'inline';
-        currencySelect.style.display = 'none';
-        cadenceSelect.style.display = 'none';
-        cadenceHidden.style.display = 'inline';
-        percentageCadenceLabel.style.display = 'inline';
-        banxicoNotice.style.display = 'none';
-        
-        // Remove comma formatting for percentages
-        amountInput.classList.remove('money-input');
-    } else {
-        // Fixed amount mode
-        amountInput.placeholder = '$1,500';
-        percentageLabel.style.display = 'none';
-        currencySelect.style.display = 'block';
-        cadenceSelect.style.display = 'block';
-        cadenceHidden.style.display = 'none';
-        percentageCadenceLabel.style.display = 'none';
-        
-        // Re-enable comma formatting
-        amountInput.classList.add('money-input');
-        attachCommaFormatting([amountInput]);
-        
-        // Show Banxico notice if USD
-        if (currencySelect.value === 'USD') {
-            banxicoNotice.style.display = 'block';
-        }
-    }
-}
-
-function toggleBenefitBanxicoNotice(benefitId) {
-    const benefitDiv = document.getElementById(benefitId);
-    if (!benefitDiv) return;
-    
-    const currencySelect = benefitDiv.querySelector('.benefit-currency-select');
-    const banxicoNotice = document.getElementById(`banxico-notice-${benefitId}`);
-    const typeSelect = benefitDiv.querySelector('.benefit-type-select');
-    
-    if (currencySelect && banxicoNotice && typeSelect) {
-        // Only show Banxico notice for USD and fixed amount (not percentage)
-        if (currencySelect.value === 'USD' && typeSelect.value === 'fixed') {
-            banxicoNotice.style.display = 'block';
-        } else {
-            banxicoNotice.style.display = 'none';
-        }
-    }
-}
-
-function formatNumber(value) {
-    // Remove all non-digit characters except decimal point
-    const cleanValue = value.replace(/[^\d.]/g, '');
-    // Split on decimal point
-    const parts = cleanValue.split('.');
-    // Add commas to integer part
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    // Return formatted value (limit to 2 decimal places if there's a decimal)
-    return parts.length > 1 ? parts[0] + '.' + parts[1].substring(0, 2) : parts[0];
-}
-
-function attachCommaFormatting(inputs) {
-    inputs.forEach(input => {
-        input.addEventListener('input', function(e) {
-            const cursorPosition = e.target.selectionStart;
-            const oldLength = e.target.value.length;
-            let formatted = formatNumber(e.target.value);
-            
-            // Check for max value constraint (e.g., Vales de Despensa max 3439)
-            const maxValue = e.target.getAttribute('data-max');
-            if (maxValue) {
-                const numericValue = parseFloat(formatted.replace(/,/g, ''));
-                if (!isNaN(numericValue) && numericValue > parseFloat(maxValue)) {
-                    formatted = formatNumber(maxValue);
-                    // Visual feedback: briefly highlight red
-                    e.target.style.borderColor = '#ef4444';
-                    setTimeout(() => {
-                        e.target.style.borderColor = '#e2e8f0';
-                    }, 500);
-                }
-            }
-            
-            const newLength = formatted.length;
-            e.target.value = formatted;
-            
-            // Adjust cursor position after formatting
-            const diff = newLength - oldLength;
-            e.target.setSelectionRange(cursorPosition + diff, cursorPosition + diff);
-        });
-    });
-}
-
-// Load saved values from hidden inputs
-function loadSavedValues() {
-    [0, 1].forEach(idx => {
-        const packageDiv = document.querySelector(`[data-package-index="${idx}"]`);
-        if (!packageDiv) return;
-        
-        // Load package name
-        const savedName = document.getElementById(`saved-pkg-${idx}-name`);
-        if (savedName && savedName.value) {
-            const nameInput = packageDiv.querySelector('.package-name-input');
-            if (nameInput) nameInput.value = savedName.value;
-        }
-        
-        // Load basic values
-        const savedRegime = document.getElementById(`saved-pkg-${idx}-regime`);
-        const savedCurrency = document.getElementById(`saved-pkg-${idx}-currency`);
-        const savedExchangeRate = document.getElementById(`saved-pkg-${idx}-exchange-rate`);
-        const savedPaymentFreq = document.getElementById(`saved-pkg-${idx}-payment-freq`);
-        const savedHours = document.getElementById(`saved-pkg-${idx}-hours`);
-        const savedSalary = document.getElementById(`saved-pkg-${idx}-salary`);
-        
-        if (savedRegime && savedRegime.value) {
-            const regimeSelect = packageDiv.querySelector('.regime-select');
-            if (regimeSelect) regimeSelect.value = savedRegime.value;
-        }
-        
-        if (savedCurrency && savedCurrency.value) {
-            const currencySelect = packageDiv.querySelector(`select[name="Currency[]"]`);
-            if (currencySelect) currencySelect.value = savedCurrency.value;
-            
-            // Trigger exchange rate visibility
-            if (savedCurrency.value === 'USD') {
-                const exchangeRateDiv = document.querySelector(`.exchange-rate-input-${idx}`);
-                if (exchangeRateDiv) exchangeRateDiv.style.display = 'block';
-                
-                if (savedExchangeRate && savedExchangeRate.value) {
-                    const exchangeInput = packageDiv.querySelector(`input[name="ExchangeRate[]"]`);
-                    if (exchangeInput) exchangeInput.value = savedExchangeRate.value;
-                }
-            }
-        }
-        
-        if (savedPaymentFreq && savedPaymentFreq.value) {
-            const freqSelect = packageDiv.querySelector(`.payment-frequency-select-${idx}`);
-            if (freqSelect) {
-                freqSelect.value = savedPaymentFreq.value;
-                toggleSalaryLabel(freqSelect, idx);
-            }
-        }
-        
-        if (savedHours && savedHours.value) {
-            const hoursInput = packageDiv.querySelector(`input[name="HoursPerWeek[]"]`);
-            if (hoursInput) hoursInput.value = savedHours.value;
-        }
-        
-        // Load unpaid vacation days (RESICO only)
-        const savedUnpaidVacation = document.getElementById(`saved-pkg-${idx}-unpaid-vacation`);
-        if (savedUnpaidVacation && savedUnpaidVacation.value) {
-            const unpaidVacationInput = packageDiv.querySelector(`input[name="UnpaidVacationDays[]"]`);
-            if (unpaidVacationInput) unpaidVacationInput.value = savedUnpaidVacation.value;
-        }
-        
-        // Load equity values
-        const savedHasEquity = document.getElementById(`saved-pkg-${idx}-has-equity`);
-        if (savedHasEquity && savedHasEquity.value === 'true') {
-            const equityCheckbox = packageDiv.querySelector(`.equity-toggle-checkbox[data-package-index="${idx}"]`);
-            if (equityCheckbox) {
-                equityCheckbox.checked = true;
-                toggleEquitySection(equityCheckbox);
-            }
-            
-            const savedInitialEquity = document.getElementById(`saved-pkg-${idx}-initial-equity`);
-            if (savedInitialEquity && savedInitialEquity.value) {
-                const initialEquityInput = packageDiv.querySelector(`input[name="InitialEquityUSD[]"]`);
-                if (initialEquityInput) initialEquityInput.value = formatNumber(savedInitialEquity.value);
-            }
-            
-            const savedHasRefreshers = document.getElementById(`saved-pkg-${idx}-has-refreshers`);
-            if (savedHasRefreshers && savedHasRefreshers.value === 'true') {
-                const refresherCheckbox = packageDiv.querySelector(`.refresher-checkbox`);
-                if (refresherCheckbox) {
-                    refresherCheckbox.checked = true;
-                    toggleRefresherFields(refresherCheckbox, idx);
-                }
-                
-                const savedRefresherMin = document.getElementById(`saved-pkg-${idx}-refresher-min`);
-                if (savedRefresherMin && savedRefresherMin.value) {
-                    const minInput = document.querySelectorAll(`input[name="RefresherMinUSD[]"]`)[idx];
-                    if (minInput) minInput.value = formatNumber(savedRefresherMin.value);
-                }
-                
-                const savedRefresherMax = document.getElementById(`saved-pkg-${idx}-refresher-max`);
-                if (savedRefresherMax && savedRefresherMax.value) {
-                    const maxInput = document.querySelectorAll(`input[name="RefresherMaxUSD[]"]`)[idx];
-                    if (maxInput) maxInput.value = formatNumber(savedRefresherMax.value);
-                }
-            }
-        }
-        
-        if (savedSalary && savedSalary.value) {
-            const salaryInput = packageDiv.querySelector('.salary-input');
-            if (salaryInput) {
-                // Format with commas
-                salaryInput.value = formatNumber(savedSalary.value);
-            }
-        }
-        
-        // Load benefits checkboxes
-        const savedHasAguinaldo = document.getElementById(`saved-pkg-${idx}-has-aguinaldo`);
-        const savedHasVales = document.getElementById(`saved-pkg-${idx}-has-vales`);
-        const savedHasPrima = document.getElementById(`saved-pkg-${idx}-has-prima`);
-        const savedHasFondo = document.getElementById(`saved-pkg-${idx}-has-fondo`);
-        
-        const aguinaldoCheckboxes = document.querySelectorAll(`input[name="HasAguinaldo[]"][value="${idx}"]`);
-        if (savedHasAguinaldo && savedHasAguinaldo.value === 'true' && aguinaldoCheckboxes.length > 0) {
-            aguinaldoCheckboxes[0].checked = true;
-            const aguinaldoDaysInput = document.querySelectorAll(`input[name="AguinaldoDays[]"]`)[idx];
-            const savedAguinaldoDays = document.getElementById(`saved-pkg-${idx}-aguinaldo-days`);
-            if (aguinaldoDaysInput && savedAguinaldoDays && savedAguinaldoDays.value) {
-                aguinaldoDaysInput.value = savedAguinaldoDays.value;
-            }
-        }
-        
-        const valesCheckboxes = document.querySelectorAll(`input[name="HasValesDespensa[]"][value="${idx}"]`);
-        if (savedHasVales && savedHasVales.value === 'true' && valesCheckboxes.length > 0) {
-            valesCheckboxes[0].checked = true;
-            const valesAmountInput = document.querySelectorAll(`input[name="ValesDespensaAmount[]"]`)[idx];
-            const savedValesAmount = document.getElementById(`saved-pkg-${idx}-vales-amount`);
-            if (valesAmountInput && savedValesAmount && savedValesAmount.value) {
-                // Format with commas
-                valesAmountInput.value = formatNumber(savedValesAmount.value);
-            }
-        }
-        
-        const primaCheckboxes = document.querySelectorAll(`input[name="HasPrimaVacacional[]"][value="${idx}"]`);
-        if (savedHasPrima && savedHasPrima.value === 'true' && primaCheckboxes.length > 0) {
-            primaCheckboxes[0].checked = true;
-            const vacationDaysInput = document.querySelectorAll(`input[name="VacationDays[]"]`)[idx];
-            const primaPercentInput = document.querySelectorAll(`input[name="PrimaVacacionalPercent[]"]`)[idx];
-            const savedVacationDays = document.getElementById(`saved-pkg-${idx}-vacation-days`);
-            const savedPrimaPercent = document.getElementById(`saved-pkg-${idx}-prima-percent`);
-            if (vacationDaysInput && savedVacationDays && savedVacationDays.value) {
-                vacationDaysInput.value = savedVacationDays.value;
-            }
-            if (primaPercentInput && savedPrimaPercent && savedPrimaPercent.value) {
-                primaPercentInput.value = savedPrimaPercent.value;
-            }
-        }
-        
-        const fondoCheckboxes = document.querySelectorAll(`input[name="HasFondoAhorro[]"][value="${idx}"]`);
-        if (savedHasFondo && savedHasFondo.value === 'true' && fondoCheckboxes.length > 0) {
-            fondoCheckboxes[0].checked = true;
-            const fondoPercentInput = document.querySelectorAll(`input[name="FondoAhorroPercent[]"]`)[idx];
-            const savedFondoPercent = document.getElementById(`saved-pkg-${idx}-fondo-percent`);
-            if (fondoPercentInput && savedFondoPercent && savedFondoPercent.value) {
-                fondoPercentInput.value = savedFondoPercent.value;
-            }
-        }
-        
-        // Load "Otras prestaciones"
-        const savedOtherBenefits = document.querySelectorAll(`.saved-other-benefit-${idx}`);
-        savedOtherBenefits.forEach(benefitInput => {
-            const benefit = {
-                name: benefitInput.getAttribute('data-name'),
-                amount: benefitInput.getAttribute('data-amount'),
-                taxFree: benefitInput.getAttribute('data-taxfree') === 'true',
-                currency: benefitInput.getAttribute('data-currency') || 'MXN',
-                cadence: benefitInput.getAttribute('data-cadence') || 'monthly',
-                isPercentage: benefitInput.getAttribute('data-ispercentage') === 'true'
-            };
-            addBenefit(idx, benefit);
-        });
-    });
-}
-
-// Strip commas before form submission
-function clearAllInputs() {
-    if (!confirm('¿Estás seguro de que quieres limpiar todos los campos?')) {
-        return;
-    }
-    
-    // Make a POST request to clear the session
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/clear';
-    
-    // Add CSRF token
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrf_token';
-    csrfInput.value = '{{.CSRFToken}}';
-    form.appendChild(csrfInput);
-    
-    document.body.appendChild(form);
-    form.submit();
-}
-
-// Toggle refresher fields
-function toggleRefresherFields(checkbox, index) {
-    const refresherFields = document.querySelector(`.refresher-fields-${index}`);
-    if (refresherFields) {
-        refresherFields.style.display = checkbox.checked ? 'block' : 'none';
-    }
-}
-
-// Toggle entire equity section
-function toggleEquitySection(checkbox) {
-    const packageIndex = checkbox.getAttribute('data-package-index');
-    const equitySection = document.querySelector(`.equity-section-${packageIndex}`);
-    if (equitySection) {
-        equitySection.style.display = checkbox.checked ? 'block' : 'none';
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Setup equity section toggle checkboxes
-    document.querySelectorAll('.equity-toggle-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            toggleEquitySection(this);
-        });
-    });
-    
-    // Setup refresher checkbox toggles
-    document.querySelectorAll('.refresher-checkbox').forEach((checkbox, index) => {
-        checkbox.addEventListener('change', function() {
-            toggleRefresherFields(this, index);
-        });
-    });
-    // Load saved values FIRST (this sets regime, frequency, and all inputs)
-    loadSavedValues();
-    
-    // Then sync UI visibility/options based on loaded regime
-    // Since toggleRegime no longer destroys the dropdown, values are preserved
-    document.querySelectorAll('.regime-select').forEach((select, index) => {
-        toggleRegime(select, index);
-    });
-    
-    // Attach comma formatting to all money inputs
-    attachCommaFormatting(document.querySelectorAll('.salary-input, .money-input'));
-    
-    // Handle form submission
-    document.querySelector('form').addEventListener('submit', function(e) {
-        // Remove commas from all inputs
-        const inputs = document.querySelectorAll('input[type="text"], input[type="number"]');
-        inputs.forEach(input => {
-            if (input.value) {
-                input.value = input.value.replace(/,/g, '');
-            }
-        });
-        
-        // Force MXN for Sueldos y Salarios (safety check)
-        document.querySelectorAll('.regime-select').forEach((regimeSelect, idx) => {
-            if (regimeSelect.value === 'sueldos_salarios') {
-                const currencySelect = document.querySelectorAll('select[name="Currency[]"]')[idx];
-                if (currencySelect) {
-                    currencySelect.value = 'MXN';
-                }
-            }
-        });
-    });
-    
-    // Initialize comparison mode on page load
-    initializeComparisonMode();
-});
-
-// ========== COMPARISON MODE TOGGLE FUNCTIONS ==========
-
-function setComparisonMode(isComparing) {
-    const packagesWrapper = document.getElementById('packagesWrapper');
-    const packagesGrid = document.getElementById('packagesGrid');
-    const package2 = document.getElementById('package-2');
-    const addButton = document.getElementById('addComparisonButton');
-    const submitButton = document.getElementById('submitButton');
-    
-    if (!packagesWrapper || !packagesGrid || !package2 || !addButton || !submitButton) return;
-    
-    // Detect if we're on mobile
-    const isMobile = window.innerWidth < 1024;
-    
-    if (isComparing) {
-        // COMPARISON MODE
-        packagesWrapper.style.position = 'relative';
-        packagesWrapper.style.display = isMobile ? 'block' : 'flex';
-        packagesWrapper.style.justifyContent = isMobile ? 'flex-start' : 'center';
-        packagesWrapper.style.gap = '1rem';
-        packagesWrapper.style.alignItems = 'stretch';
-        packagesWrapper.style.padding = isMobile ? '0 10px' : '0';
-        
-        packagesGrid.style.width = isMobile ? '100%' : 'auto';
-        packagesGrid.style.maxWidth = '100%';
-        packagesGrid.style.margin = '0';
-        packagesGrid.style.gridTemplateColumns = isMobile ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))';
-        
-        package2.style.display = 'block';
-        addButton.style.display = 'none';
-        submitButton.textContent = '💰 Comparar Paquetes';
-    } else {
-        // SINGLE MODE
-        if (isMobile) {
-            // MOBILE: Stack vertically, full width
-            packagesWrapper.style.position = 'static';
-            packagesWrapper.style.display = 'block';
-            packagesWrapper.style.padding = '0 10px';
-            packagesWrapper.style.marginBottom = '2rem';
-            
-            packagesGrid.style.width = '100%';
-            packagesGrid.style.maxWidth = '100%';
-            packagesGrid.style.margin = '0';
-            packagesGrid.style.gridTemplateColumns = '1fr';
-            
-            package2.style.display = 'none';
-            
-            // Button below, horizontal
-            addButton.style.position = 'static';
-            addButton.style.left = 'auto';
-            addButton.style.top = 'auto';
-            addButton.style.display = 'flex';
-            addButton.style.width = '100%';
-            addButton.style.marginTop = '1rem';
-            addButton.style.justifyContent = 'center';
-            
-            // Make button text horizontal
-            const addButtonEl = addButton.querySelector('button');
-            if (addButtonEl) {
-                addButtonEl.style.writingMode = 'horizontal-tb';
-                addButtonEl.style.width = 'auto';
-                addButtonEl.style.maxWidth = '280px';
-                addButtonEl.style.padding = '0.875rem 1.5rem';
-                addButtonEl.style.height = 'auto';
-                addButtonEl.style.fontSize = '0.85rem';
-                
-                // Show mobile text, hide desktop text
-                const desktopText = addButtonEl.querySelector('.btn-text-desktop');
-                const mobileText = addButtonEl.querySelector('.btn-text-mobile');
-                if (desktopText) desktopText.style.display = 'none';
-                if (mobileText) mobileText.style.display = 'inline';
-            }
-        } else {
-            // DESKTOP: Package 1 centered, button on right (vertical)
-            packagesWrapper.style.position = 'relative';
-            packagesWrapper.style.display = 'block';
-            packagesWrapper.style.padding = '0';
-            
-            packagesGrid.style.width = '780px';
-            packagesGrid.style.maxWidth = '780px';
-            packagesGrid.style.margin = '0 auto';
-            packagesGrid.style.gridTemplateColumns = '1fr';
-            
-            package2.style.display = 'none';
-            
-            // Button on right, vertical
-            addButton.style.position = 'absolute';
-            addButton.style.left = 'calc(50% + 390px + 1rem)';
-            addButton.style.top = '0';
-            addButton.style.display = 'flex';
-            
-            // Make button text vertical
-            const addButtonEl = addButton.querySelector('button');
-            if (addButtonEl) {
-                addButtonEl.style.writingMode = 'vertical-rl';
-                addButtonEl.style.width = 'auto';
-                addButtonEl.style.maxWidth = 'none';
-                addButtonEl.style.padding = '1.5rem 0.75rem';
-                addButtonEl.style.height = 'auto';
-                addButtonEl.style.maxHeight = '420px';
-                addButtonEl.style.fontSize = '0.7rem';
-                
-                // Show desktop text, hide mobile text
-                const desktopText = addButtonEl.querySelector('.btn-text-desktop');
-                const mobileText = addButtonEl.querySelector('.btn-text-mobile');
-                if (desktopText) desktopText.style.display = 'inline';
-                if (mobileText) mobileText.style.display = 'none';
-            }
-        }
-        
-        submitButton.textContent = '💰 Calcular Compensación';
-    }
-}
-
-// Re-run on window resize to adjust layout
-let resizeTimer;
-window.addEventListener('resize', function() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function() {
-        // Re-check if we're in comparison mode
-        const package2 = document.getElementById('package-2');
-        if (package2 && package2.style.display === 'block') {
-            setComparisonMode(true);
-        } else {
-            setComparisonMode(false);
-        }
-    }, 250);
-});
-
-function initializeComparisonMode() {
-    // Check if we have saved inputs for Package 2 (server-side persistence)
-    const savedPackage2Salary = document.getElementById('saved-pkg-1-salary');
-    const savedPackage2Name = document.getElementById('saved-pkg-1-name');
-    
-    // Auto-detect: If Package 2 has meaningful data, initialize in Comparison Mode
-    const hasPackage2Data = (savedPackage2Salary && savedPackage2Salary.value && savedPackage2Salary.value !== '') ||
-                           (savedPackage2Name && savedPackage2Name.value && savedPackage2Name.value !== '' && savedPackage2Name.value !== 'Paquete 2');
-    
-    if (hasPackage2Data) {
-        setComparisonMode(true);
-    } else {
-        setComparisonMode(false);
-    }
-}
-</script>
+{{end}}
 {{end}}
 
+{{define "home:result-title"}}
+{{if .Result.PackageName}}{{.Result.PackageName}}{{else}}Paquete {{add .Index 1}}{{end}}
+{{end}}
+
+{{define "home:monthly-breakdown"}}
+<h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem;">💰 Desglose Mensual:</h4>
+<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+    <tr style="border-bottom: 2px solid #e2e8f0;">
+        <td style="padding: 0.5rem 0; color: #64748b;">Salario Bruto</td>
+        <td style="padding: 0.5rem 0; text-align: right; font-weight: 600;">${{formatFloat .GrossSalary 2}}</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 0.5rem 0; color: #64748b;">(-) ISR</td>
+        <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">-${{formatFloat .ISRTax 2}}</td>
+    </tr>
+    {{template "home:subsidio-row" .}}
+    {{template "home:imss-worker-row" .}}
+    {{template "home:fondo-employee-row" .}}
+    {{template "home:vales-row" .}}
+    {{template "home:monthly-other-benefits" .}}
+    <tr style="border-top: 2px solid #2563eb; background: #eff6ff;">
+        <td style="padding: 0.5rem 0; font-weight: 700; color: #2563eb;">Neto Mensual</td>
+        <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #2563eb;">${{formatFloat .NetSalary 2}}</td>
+    </tr>
+</table>
+{{end}}
+
+{{define "home:subsidio-row"}}
+{{if .SubsidioEmpleo}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
+    <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">(+) Subsidio al Empleo</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">+${{formatFloat .SubsidioEmpleo 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:imss-worker-row"}}
+{{if .IMSSWorker}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">(-) IMSS Trabajador</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">-${{formatFloat .IMSSWorker 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:fondo-employee-row"}}
+{{if .FondoAhorroEmployee}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">(-) Fondo de Ahorro (empleado)</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">-${{formatFloat .FondoAhorroEmployee 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:vales-row"}}
+{{if .ValesDespensaMonthly}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
+    <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">(+) Vales de Despensa</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">+${{formatFloat .ValesDespensaMonthly 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:monthly-other-benefits"}}
+{{range .OtherBenefits}}
+{{if eq .Cadence "monthly"}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #f0fdf4;">
+    <td style="padding: 0.5rem 0; color: #059669; font-weight: 500;">
+        (+) {{.Name}} {{if .TaxFree}}<span style="font-size: 0.65rem; background: #dcfce7; color: #166534; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">Libre ISR</span>{{end}} <span style="font-size: 0.7rem; color: #64748b;">(mensual)</span>
+    </td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">+${{formatFloat .Net 2}}</td>
+</tr>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "home:annual-benefits"}}
+{{if or .AguinaldoNet .PrimaVacacionalNet .FondoAhorroYearly (gt (len .OtherBenefits) 0)}}
+<h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-top: 1.5rem; margin-bottom: 0.75rem;">🎁 Prestaciones Anuales:</h4>
+<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+    {{template "home:aguinaldo-row" .}}
+    {{template "home:prima-row" .}}
+    {{template "home:fondo-yearly-row" .}}
+    {{template "home:annual-other-benefits" .}}
+</table>
+{{end}}
+{{end}}
+
+{{define "home:aguinaldo-row"}}
+{{if .AguinaldoNet}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">🎄 Aguinaldo (neto)</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">${{formatFloat .AguinaldoNet 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:prima-row"}}
+{{if .PrimaVacacionalNet}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">🏖️ Prima Vacacional (neto)</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">${{formatFloat .PrimaVacacionalNet 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:fondo-yearly-row"}}
+{{if .FondoAhorroYearly}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">💰 Fondo de Ahorro (retorno 2x)</td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">${{formatFloat .FondoAhorroYearly 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:annual-other-benefits"}}
+{{range .OtherBenefits}}
+{{if eq .Cadence "annual"}}
+<tr style="border-bottom: 1px solid #e2e8f0;">
+    <td style="padding: 0.5rem 0; color: #64748b;">
+        ✨ {{.Name}} {{if .TaxFree}}<span style="font-size: 0.65rem; background: #dcfce7; color: #166534; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">Libre ISR</span>{{end}} <span style="font-size: 0.7rem; color: #64748b;">(anual)</span>
+    </td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #059669; font-weight: 600;">${{formatFloat .Net 2}}</td>
+</tr>
+{{end}}
+{{end}}
+{{end}}
+
+{{define "home:annual-totals"}}
+<h4 style="font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-top: 1.5rem; margin-bottom: 0.75rem;">📊 Totales Anuales:</h4>
+<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+    {{template "home:yearly-gross-base-row" .}}
+    {{template "home:infonavit-row" .}}
+    {{template "home:imss-employer-row" .}}
+    <tr style="border-bottom: 2px solid #6366f1; background: #eef2ff;">
+        <td style="padding: 0.5rem 0; color: #4338ca; font-weight: 700;">💰 Comp Total Anual</td>
+        <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #4338ca;">${{formatFloat .YearlyGross 2}}</td>
+    </tr>
+    {{template "home:unpaid-vacation-row" .}}
+    <tr style="border-top: 2px solid #7c3aed; background: #faf5ff;">
+        <td style="padding: 0.5rem 0; font-weight: 700; color: #7c3aed;">Neto Anual Total</td>
+        <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #7c3aed;">${{formatFloat .YearlyNet 2}}</td>
+    </tr>
+    <tr style="border-top: 2px solid #059669; background: #f0fdf4;">
+        <td style="padding: 0.5rem 0; font-weight: 700; color: #059669;">Neto Mensual Ajustado (÷ 12)</td>
+        <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #059669; font-size: 0.9rem;">${{formatFloat .MonthlyAdjusted 2}}</td>
+    </tr>
+</table>
+<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f0fdf4; border-radius: 4px; font-size: 0.7rem; color: #059669;">
+    💡 <strong>Neto Mensual Ajustado:</strong> Incluye prestaciones anuales prorrateadas mensualmente. Mejor métrica para comparar poder adquisitivo real.
+</div>
+{{end}}
+
+{{define "home:yearly-gross-base-row"}}
+{{if .YearlyGrossBase}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fef3c7;">
+    <td style="padding: 0.5rem 0; color: #92400e; font-weight: 600;">Bruto Anual (solo salario)</td>
+    <td style="padding: 0.5rem 0; text-align: right; font-weight: 700; color: #92400e;">${{formatFloat .YearlyGrossBase 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:infonavit-row"}}
+{{if .InfonavitEmployerAnnual}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fef9c3;">
+    <td style="padding: 0.5rem 0; color: #854d0e; font-weight: 500;">
+        {{if .HasInfonavitCredit}}
+            🏠 (+) Abono a Capital (Patrón 5%)
+            <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
+            <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.25rem;">(Tu patrón paga esto directo a tu deuda)</div>
+        {{else}}
+            🐷 (+) Ahorro Vivienda (Patrón 5%)
+            <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
+            <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.25rem;">(Tu patrón deposita esto en tu Subcuenta/Afore)</div>
+        {{end}}
+    </td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #ca8a04; font-weight: 600;">+${{formatFloat .InfonavitEmployerAnnual 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:imss-employer-row"}}
+{{if .IMSSEmployerAnnual}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fef9c3;">
+    <td style="padding: 0.5rem 0; color: #854d0e; font-weight: 500;">
+        (+) IMSS Patronal
+        <span style="font-size: 0.65rem; background: #fef3c7; color: #92400e; padding: 0.125rem 0.25rem; border-radius: 3px; margin-left: 0.25rem;">No líquido</span>
+    </td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #ca8a04; font-weight: 600;">+${{formatFloat .IMSSEmployerAnnual 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:unpaid-vacation-row"}}
+{{if .UnpaidVacationLoss}}
+<tr style="border-bottom: 1px solid #e2e8f0; background: #fee2e2;">
+    <td style="padding: 0.5rem 0; color: #991b1b; font-weight: 500;">
+        (-) Ingreso no percibido por vacaciones
+        <span style="font-size: 0.7rem; color: #64748b;">({{.UnpaidVacationDays}} días)</span>
+    </td>
+    <td style="padding: 0.5rem 0; text-align: right; color: #ef4444; font-weight: 600;">-${{formatFloat .UnpaidVacationLoss 2}}</td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "home:sbc-info"}}
+{{if .SBC}}
+<div style="margin-top: 1rem; padding: 0.75rem; background: #f1f5f9; border-radius: 6px; font-size: 0.75rem; color: #475569;">
+    <strong>📌 Info:</strong> SBC Diario: ${{formatFloat .SBC 2}}
+</div>
+{{end}}
+{{end}}
+
+{{define "home:equity-breakdown"}}
+{{if .Result.EquityConfig}}
+<div style="margin-top: 1.5rem; padding: 1.5rem; background: #f8fafc; border-radius: 8px; border: 2px solid #3b82f6;">
+    <h4 style="margin: 0 0 1rem 0; color: #0f172a; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">📈 Equity Breakdown (4 Years)</h4>
+    <div style="margin-bottom: 1rem; font-size: 0.75rem; color: #64748b;">
+        <strong>Initial Grant:</strong> ${{printf "%.0f" .Result.EquityConfig.InitialGrantUSD}} USD
+        {{if .Result.EquityConfig.HasRefreshers}}
+        <br><strong>Annual Refreshers:</strong> ${{printf "%.0f" .Result.EquityConfig.RefresherMinUSD}}-${{printf "%.0f" .Result.EquityConfig.RefresherMaxUSD}} USD
+        {{end}}
+        <br><strong>Exchange Rate:</strong> ${{printf "%.4f" .FiscalYear.USDMXNRate}} MXN/USD
+        <span style="font-size: 0.65rem; color: #94a3b8;">(Actualizado desde Banxico)</span>
+    </div>
+    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; border-radius: 8px; overflow: hidden;">
+        {{template "home:equity-table-head" .Result}}
+        {{template "home:equity-table-body" .Result}}
+    </table>
+    <div style="margin-top: 1rem; padding: 0.75rem; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px; font-size: 0.7rem; color: #1e40af;">
+        💡 <strong>Nota:</strong> Los refreshers se otorgan anualmente y vesten a lo largo de 4 años. El tipo de cambio utilizado es el oficial de Banxico actualizado diariamente.
+    </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "home:equity-table-head"}}
+<thead>
+    <tr style="background: #0f172a; color: white;">
+        <th style="padding: 0.75rem; text-align: left; border-right: 1px solid #334155;">Año</th>
+        <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Grant Inicial</th>
+        {{if .EquityConfig.HasRefreshers}}
+        <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Refreshers</th>
+        <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Nuevo Grant</th>
+        {{end}}
+        <th style="padding: 0.75rem; text-align: right; border-right: 1px solid #334155;">Total USD</th>
+        <th style="padding: 0.75rem; text-align: right;">Total MXN</th>
+    </tr>
+</thead>
+{{end}}
+
+{{define "home:equity-table-body"}}
+<tbody>
+    {{range .EquitySchedule}}
+    {{template "home:equity-row" (dict "Year" . "Result" $)}}
+    {{end}}
+</tbody>
+{{end}}
+
+{{define "home:equity-row"}}
+<tr style="border-bottom: 1px solid #e2e8f0; {{template "home:equity-row-background" .Year}}">
+    <td style="padding: 0.75rem; font-weight: 600; border-right: 1px solid #f1f5f9;">
+        Año {{.Year.Year}}
+        {{template "home:equity-year-label" .Year}}
+    </td>
+    {{if eq .Year.Year 0}}
+        {{template "home:equity-year-zero" .}}
+    {{else}}
+        {{template "home:equity-year-vested" .}}
+    {{end}}
+</tr>
+{{end}}
+
+{{define "home:equity-row-background"}}
+{{if eq .Year 0}}background: #eff6ff;{{end}}
+{{end}}
+
+{{define "home:equity-year-label"}}
+{{if eq .Year 0}}
+<span style="font-size: 0.7rem; color: #3b82f6; font-weight: normal;">(Ingreso)</span>
+{{end}}
+{{end}}
+
+{{define "home:equity-year-zero"}}
+<td colspan="{{if .Result.EquityConfig.HasRefreshers}}5{{else}}3{{end}}" style="padding: 1rem; text-align: center; color: #1e40af; font-style: italic; border-left: 3px solid #3b82f6;">
+    💼 Grant otorgado: <strong>${{formatFloat .Result.EquityConfig.InitialGrantUSD 0}} USD</strong> — Nada veste hasta cumplir 1 año
+</td>
+{{end}}
+
+{{define "home:equity-year-vested"}}
+<td style="padding: 0.75rem; text-align: right; border-right: 1px solid #f1f5f9;">${{formatFloat .Year.InitialGrantVested 0}}</td>
+{{template "home:equity-refresher-cells" .}}
+<td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #2563eb; border-right: 1px solid #f1f5f9;">${{formatFloat .Year.TotalVested 0}}</td>
+<td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #059669;">${{formatFloat .Year.TotalVestedMXN 2}}</td>
+{{end}}
+
+{{define "home:equity-refresher-cells"}}
+{{if .Result.EquityConfig.HasRefreshers}}
+<td style="padding: 0.75rem; text-align: right; border-right: 1px solid #f1f5f9;">${{formatFloat .Year.RefresherTotal 0}}</td>
+<td style="padding: 0.75rem; text-align: right; color: #10b981; border-right: 1px solid #f1f5f9;">
+    {{template "home:equity-new-refresher" .Year}}
+</td>
+{{end}}
+{{end}}
+
+{{define "home:equity-new-refresher"}}
+{{if .NewRefresherGranted}}
+    {{if gt .NewRefresherGranted 0.0}}
+    +${{formatFloat .NewRefresherGranted 0}}
+    {{else}}
+    -
+    {{end}}
+{{else}}
+-
+{{end}}
+{{end}}
+
+{{define "home:info-box"}}
+<!-- Info Box -->
+<div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 1.25rem; border-radius: 8px; font-size: 0.875rem; color: #1e40af;">
+    <strong>💡 Tip:</strong> El "Neto Mensual Ajustado" incluye las prestaciones anuales divididas entre 12 meses. Es una mejor métrica para comparar tu poder adquisitivo real.
+</div>
+{{end}}
+
+{{define "home:script-config"}}
+<script>
+window.TotalCompHome = {
+    csrfToken: {{.CSRFToken}},
+    usdMxnRate: {{if .FiscalYear}}{{formatFloat .FiscalYear.USDMXNRate 4}}{{else}}{{"20.00"}}{{end}}
+};
+</script>
+{{end}}

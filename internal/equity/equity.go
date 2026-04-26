@@ -27,103 +27,114 @@ type EquityConfig struct {
 // Returns a slice of YearlyEquity for the specified number of years (including Year 0)
 func CalculateEquitySchedule(config EquityConfig, years int) []YearlyEquity {
 	schedule := make([]YearlyEquity, years+1) // +1 for Year 0
-	
-	// Calculate average refresher amount
-	avgRefresher := 0.0
-	if config.HasRefreshers {
-		avgRefresher = (config.RefresherMinUSD + config.RefresherMaxUSD) / 2.0
-	}
-	
-	// Annual vesting percentage (typically 25% per year for 4 years)
 	annualVestPercent := 1.0 / float64(config.VestingYears)
-	
-	// Year 0: Join date - grant awarded but nothing vests yet
-	schedule[0] = YearlyEquity{
-		Year:                0,
-		InitialGrantVested:  0,
-		RefresherVested:     make(map[int]float64),
-		RefresherTotal:      0,
-		TotalVested:         0,
-		NewRefresherGranted: 0,
-		TotalVestedMXN:      0,
-	}
-	
-	// Track refresher grants by year they were granted
-	// refresherGrants[grantYear] = amount
+	avgRefresher := averageRefresher(config)
 	refresherGrants := make(map[int]float64)
-	
+
+	schedule[0] = emptyEquityYear(0)
 	for year := 1; year <= years; year++ {
-		yearEquity := YearlyEquity{
-			Year:            year,
-			RefresherVested: make(map[int]float64),
-		}
-		
-		// 1. Vest from initial grant (only for first VestingYears years)
-		if year <= config.VestingYears {
-			yearEquity.InitialGrantVested = config.InitialGrantUSD * annualVestPercent
-		}
-		
-		// 2. Vest from refreshers (they vest starting 1 year after granted)
-		if config.HasRefreshers {
-			for grantYear, grantAmount := range refresherGrants {
-				vestingStartYear := grantYear + 1
-				vestingEndYear := grantYear + config.VestingYears
-				
-				// Check if this grant is currently vesting
-				if year >= vestingStartYear && year <= vestingEndYear {
-					vestedAmount := grantAmount * annualVestPercent
-					yearEquity.RefresherVested[grantYear] = vestedAmount
-				}
-			}
-		}
-		
-		// 3. Grant new refresher this year (starts vesting next year)
-		if config.HasRefreshers {
-			yearEquity.NewRefresherGranted = avgRefresher
-			refresherGrants[year] = avgRefresher
-		}
-		
-		// 4. Calculate total from refreshers
-		yearEquity.RefresherTotal = 0.0
-		for _, amount := range yearEquity.RefresherVested {
-			yearEquity.RefresherTotal += amount
-		}
-		
-		// 5. Calculate total vested this year (USD)
-		yearEquity.TotalVested = yearEquity.InitialGrantVested + yearEquity.RefresherTotal
-		
-		// 6. Convert to MXN
-		yearEquity.TotalVestedMXN = yearEquity.TotalVested * config.ExchangeRate
-		
-		// Round to 2 decimal places
-		yearEquity.TotalVested = math.Round(yearEquity.TotalVested*100) / 100
-		yearEquity.TotalVestedMXN = math.Round(yearEquity.TotalVestedMXN*100) / 100
-		yearEquity.InitialGrantVested = math.Round(yearEquity.InitialGrantVested*100) / 100
-		yearEquity.RefresherTotal = math.Round(yearEquity.RefresherTotal*100) / 100
-		yearEquity.NewRefresherGranted = math.Round(yearEquity.NewRefresherGranted*100) / 100
-		
-		for k, v := range yearEquity.RefresherVested {
-			yearEquity.RefresherVested[k] = math.Round(v*100) / 100
-		}
-		
+		yearEquity := calculateEquityYear(config, year, annualVestPercent, avgRefresher, refresherGrants)
 		schedule[year] = yearEquity
 	}
-	
+
 	return schedule
+}
+
+func averageRefresher(config EquityConfig) float64 {
+	if config.HasRefreshers {
+		return (config.RefresherMinUSD + config.RefresherMaxUSD) / 2.0
+	}
+	return 0
+}
+
+func emptyEquityYear(year int) YearlyEquity {
+	return YearlyEquity{Year: year, RefresherVested: make(map[int]float64)}
+}
+
+func calculateEquityYear(config EquityConfig, year int, annualVestPercent float64, avgRefresher float64, refresherGrants map[int]float64) YearlyEquity {
+	yearEquity := emptyEquityYear(year)
+	yearEquity.InitialGrantVested = initialGrantVested(config, year, annualVestPercent)
+	yearEquity.RefresherVested = vestedRefreshers(config, year, annualVestPercent, refresherGrants)
+	grantRefresher(config, year, avgRefresher, refresherGrants, &yearEquity)
+	finalizeEquityYear(config, &yearEquity)
+	return yearEquity
+}
+
+func initialGrantVested(config EquityConfig, year int, annualVestPercent float64) float64 {
+	if year <= config.VestingYears {
+		return config.InitialGrantUSD * annualVestPercent
+	}
+	return 0
+}
+
+func vestedRefreshers(config EquityConfig, year int, annualVestPercent float64, refresherGrants map[int]float64) map[int]float64 {
+	vested := make(map[int]float64)
+	if !config.HasRefreshers {
+		return vested
+	}
+	for grantYear, grantAmount := range refresherGrants {
+		if grantVestsInYear(grantYear, year, config.VestingYears) {
+			vested[grantYear] = grantAmount * annualVestPercent
+		}
+	}
+	return vested
+}
+
+func grantVestsInYear(grantYear int, year int, vestingYears int) bool {
+	vestingStartYear := grantYear + 1
+	vestingEndYear := grantYear + vestingYears
+	return year >= vestingStartYear && year <= vestingEndYear
+}
+
+func grantRefresher(config EquityConfig, year int, avgRefresher float64, refresherGrants map[int]float64, yearEquity *YearlyEquity) {
+	if !config.HasRefreshers {
+		return
+	}
+	yearEquity.NewRefresherGranted = avgRefresher
+	refresherGrants[year] = avgRefresher
+}
+
+func finalizeEquityYear(config EquityConfig, yearEquity *YearlyEquity) {
+	yearEquity.RefresherTotal = totalRefresherVested(yearEquity.RefresherVested)
+	yearEquity.TotalVested = yearEquity.InitialGrantVested + yearEquity.RefresherTotal
+	yearEquity.TotalVestedMXN = yearEquity.TotalVested * config.ExchangeRate
+	roundEquityYear(yearEquity)
+}
+
+func totalRefresherVested(refreshers map[int]float64) float64 {
+	total := 0.0
+	for _, amount := range refreshers {
+		total += amount
+	}
+	return total
+}
+
+func roundEquityYear(yearEquity *YearlyEquity) {
+	yearEquity.TotalVested = roundMoney(yearEquity.TotalVested)
+	yearEquity.TotalVestedMXN = roundMoney(yearEquity.TotalVestedMXN)
+	yearEquity.InitialGrantVested = roundMoney(yearEquity.InitialGrantVested)
+	yearEquity.RefresherTotal = roundMoney(yearEquity.RefresherTotal)
+	yearEquity.NewRefresherGranted = roundMoney(yearEquity.NewRefresherGranted)
+	for k, v := range yearEquity.RefresherVested {
+		yearEquity.RefresherVested[k] = roundMoney(v)
+	}
+}
+
+func roundMoney(value float64) float64 {
+	return math.Round(value*100) / 100
 }
 
 // GetTotalEquityOver4Years returns the total equity vested over 4 years
 func GetTotalEquityOver4Years(config EquityConfig) (float64, float64) {
 	schedule := CalculateEquitySchedule(config, 4)
-	
+
 	totalUSD := 0.0
 	totalMXN := 0.0
-	
+
 	for _, year := range schedule {
 		totalUSD += year.TotalVested
 		totalMXN += year.TotalVestedMXN
 	}
-	
+
 	return totalUSD, totalMXN
 }
-

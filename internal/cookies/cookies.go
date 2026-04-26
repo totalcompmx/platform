@@ -17,6 +17,7 @@ import (
 var (
 	ErrValueTooLong = errors.New("cookie value too long")
 	ErrInvalidValue = errors.New("invalid cookie value")
+	randomReader    = rand.Reader
 )
 
 func Write(w http.ResponseWriter, cookie http.Cookie) error {
@@ -82,18 +83,13 @@ func ReadSigned(r *http.Request, name string, secretKey string) (string, error) 
 }
 
 func WriteEncrypted(w http.ResponseWriter, cookie http.Cookie, secretKey string) error {
-	block, err := aes.NewCipher([]byte(secretKey))
-	if err != nil {
-		return err
-	}
-
-	aesGCM, err := cipher.NewGCM(block)
+	aesGCM, err := newCookieAEAD(secretKey)
 	if err != nil {
 		return err
 	}
 
 	nonce := make([]byte, aesGCM.NonceSize())
-	_, err = io.ReadFull(rand.Reader, nonce)
+	_, err = io.ReadFull(randomReader, nonce)
 	if err != nil {
 		return err
 	}
@@ -113,31 +109,52 @@ func ReadEncrypted(r *http.Request, name string, secretKey string) (string, erro
 		return "", err
 	}
 
-	block, err := aes.NewCipher([]byte(secretKey))
+	plaintext, err := decryptCookieValue(encryptedValue, secretKey)
 	if err != nil {
 		return "", err
 	}
 
-	aesGCM, err := cipher.NewGCM(block)
+	return encryptedCookieValue(plaintext, name)
+}
+
+func decryptCookieValue(encryptedValue string, secretKey string) (string, error) {
+	aesGCM, err := newCookieAEAD(secretKey)
 	if err != nil {
 		return "", err
 	}
 
-	nonceSize := aesGCM.NonceSize()
-
-	if len(encryptedValue) < nonceSize {
+	nonce, ciphertext, ok := encryptedCookieParts(encryptedValue, aesGCM.NonceSize())
+	if !ok {
 		return "", ErrInvalidValue
 	}
-
-	nonce := encryptedValue[:nonceSize]
-	ciphertext := encryptedValue[nonceSize:]
 
 	plaintext, err := aesGCM.Open(nil, []byte(nonce), []byte(ciphertext), nil)
 	if err != nil {
 		return "", ErrInvalidValue
 	}
 
-	expectedName, value, ok := strings.Cut(string(plaintext), ":")
+	return string(plaintext), nil
+}
+
+func newCookieAEAD(secretKey string) (cipher.AEAD, error) {
+	block, err := aes.NewCipher([]byte(secretKey))
+	if err != nil {
+		return nil, err
+	}
+
+	return cipher.NewGCM(block)
+}
+
+func encryptedCookieParts(encryptedValue string, nonceSize int) (string, string, bool) {
+	if len(encryptedValue) < nonceSize {
+		return "", "", false
+	}
+
+	return encryptedValue[:nonceSize], encryptedValue[nonceSize:], true
+}
+
+func encryptedCookieValue(plaintext string, name string) (string, error) {
+	expectedName, value, ok := strings.Cut(plaintext, ":")
 	if !ok {
 		return "", ErrInvalidValue
 	}

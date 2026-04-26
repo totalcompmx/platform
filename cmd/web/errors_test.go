@@ -40,7 +40,7 @@ func TestReportServerError(t *testing.T) {
 
 	t.Run("Sends notification email when enabled", func(t *testing.T) {
 		app := newTestApplication(t)
-		app.config.notifications.email = "zoe@github.com/jcroyoaun/totalcompmx"
+		app.config.notifications.email = "zoe@example.com"
 
 		req := newTestRequest(t, http.MethodGet, "/test")
 
@@ -48,7 +48,7 @@ func TestReportServerError(t *testing.T) {
 			app.serverError(w, r, errors.New("this is a test error"))
 		}))
 		assert.Equal(t, len(app.mailer.SentMessages), 1)
-		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "To: <zoe@github.com/jcroyoaun/totalcompmx>"))
+		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "To: zoe@example.com"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Error message: this is a test error"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Request method: GET"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Request URL: /test"))
@@ -92,7 +92,7 @@ func TestServerError(t *testing.T) {
 
 	t.Run("Sends notification email when enabled", func(t *testing.T) {
 		app := newTestApplication(t)
-		app.config.notifications.email = "zoe@github.com/jcroyoaun/totalcompmx"
+		app.config.notifications.email = "zoe@example.com"
 
 		req := newTestRequest(t, http.MethodGet, "/test")
 
@@ -100,7 +100,7 @@ func TestServerError(t *testing.T) {
 			app.serverError(w, r, errors.New("this is a test error"))
 		}))
 		assert.Equal(t, len(app.mailer.SentMessages), 1)
-		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "To: <zoe@github.com/jcroyoaun/totalcompmx>"))
+		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "To: zoe@example.com"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Error message: this is a test error"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Request method: GET"))
 		assert.True(t, strings.Contains(app.mailer.SentMessages[0], "Request URL: /test"))

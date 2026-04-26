@@ -77,4 +77,13 @@ func TestMetricsResponseWriter(t *testing.T) {
 		mw.Write([]byte("test data"))
 		assert.Equal(t, w.Body.String(), "test data")
 	})
+
+	t.Run("Unwrap returns underlying response writer", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		mw := NewMetricsResponseWriter(w)
+
+		if mw.Unwrap() != w {
+			t.Fatalf("got different response writer")
+		}
+	})
 }

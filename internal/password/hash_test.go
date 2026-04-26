@@ -1,6 +1,7 @@
 package password
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jcroyoaun/totalcompmx/internal/assert"
@@ -11,6 +12,12 @@ func TestHash(t *testing.T) {
 		hashedPassword, err := Hash("superS3cret")
 		assert.Nil(t, err)
 		assert.MatchesRegexp(t, hashedPassword, `^\$2a\$12\$[./0-9A-Za-z]{53}$`)
+	})
+
+	t.Run("Returns error when password is too long for bcrypt", func(t *testing.T) {
+		hashedPassword, err := Hash(strings.Repeat("a", 73))
+		assert.NotNil(t, err)
+		assert.Equal(t, "", hashedPassword)
 	})
 }
 

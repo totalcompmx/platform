@@ -16,6 +16,11 @@ import (
 	"github.com/jcroyoaun/totalcompmx/internal/validator"
 )
 
+var generateComparisonReport = pdf.GenerateComparisonReport
+var responsePage = response.Page
+var responsePageWithHeaders = response.PageWithHeaders
+var responseJSON = response.JSON
+
 type OtherBenefit struct {
 	Name         string
 	Amount       float64
@@ -26,736 +31,729 @@ type OtherBenefit struct {
 }
 
 type PackageResult struct {
-	PackageName     string
+	PackageName string
 	*database.SalaryCalculation
-	EquityConfig    *equity.EquityConfig
-	EquitySchedule  []equity.YearlyEquity
+	EquityConfig   *equity.EquityConfig
+	EquitySchedule []equity.YearlyEquity
 }
 
 type PackageInput struct {
-	Name                    string
-	Regime                  string
-	Currency                string
-	ExchangeRate            string
-	PaymentFrequency        string
-	HoursPerWeek            string
-	GrossMonthlySalary      string
-	HasAguinaldo            bool
-	AguinaldoDays           string
-	HasValesDespensa        bool
-	ValesDespensaAmount     string
-	HasPrimaVacacional      bool
-	VacationDays            string
-	PrimaVacacionalPercent  string
-	HasFondoAhorro          bool
-	FondoAhorroPercent      string
-	UnpaidVacationDays      string // RESICO only: days off without pay
-	OtherBenefits           []OtherBenefit
+	Name                   string
+	Regime                 string
+	Currency               string
+	ExchangeRate           string
+	PaymentFrequency       string
+	HoursPerWeek           string
+	GrossMonthlySalary     string
+	HasAguinaldo           bool
+	AguinaldoDays          string
+	HasValesDespensa       bool
+	ValesDespensaAmount    string
+	HasPrimaVacacional     bool
+	VacationDays           string
+	PrimaVacacionalPercent string
+	HasFondoAhorro         bool
+	FondoAhorroPercent     string
+	UnpaidVacationDays     string // RESICO only: days off without pay
+	OtherBenefits          []OtherBenefit
 	// Equity fields
-	HasEquity               bool
-	InitialEquityUSD        string
-	HasRefreshers           bool
-	RefresherMinUSD         string
-	RefresherMaxUSD         string
+	HasEquity        bool
+	InitialEquityUSD string
+	HasRefreshers    bool
+	RefresherMinUSD  string
+	RefresherMaxUSD  string
 }
 
 func (app *application) clearSession(w http.ResponseWriter, r *http.Request) {
 	// Clear all session data
-	err := app.sessionManager.RenewToken(r.Context())
+	err := renewSessionToken(app.sessionManager, r.Context())
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
-	
+
 	// Remove all calculator-related session data
 	app.sessionManager.Remove(r.Context(), "packageInputs")
 	app.sessionManager.Remove(r.Context(), "comparisonResults")
 	app.sessionManager.Remove(r.Context(), "bestPackage")
 	app.sessionManager.Remove(r.Context(), "fiscalYear")
-	
+
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	var form struct {
-		PackageNames []string `form:"-"`
-		Validator    validator.Validator `form:"-"`
+	if r.Method == http.MethodGet {
+		app.homeGet(w, r)
+		return
+	}
+	app.homePost(w, r)
+}
+
+type homeForm struct {
+	PackageNames []string            `form:"-"`
+	Validator    validator.Validator `form:"-"`
+}
+
+func (app *application) homeGet(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+
+	fiscalYear, ok := app.requireActiveFiscalYear(w, r)
+	if !ok {
+		return
+	}
+	data["FiscalYear"] = fiscalYear
+	app.populateHomeGetData(r, data)
+	app.renderHome(w, r, http.StatusOK, data)
+}
+
+func (app *application) populateHomeGetData(r *http.Request, data map[string]any) {
+	if app.sessionManager.Exists(r.Context(), "comparisonResults") {
+		data["PackageInputs"] = app.sessionManager.Get(r.Context(), "packageInputs")
+		data["Results"] = app.sessionManager.Get(r.Context(), "comparisonResults")
+		data["BestPackage"] = app.sessionManager.Get(r.Context(), "bestPackage")
+		app.applySessionFiscalYear(r, data)
+	} else {
+		var form homeForm
+		form.PackageNames = []string{"Paquete 1", "Paquete 2"}
+		data["Form"] = form
+	}
+}
+
+func (app *application) applySessionFiscalYear(r *http.Request, data map[string]any) {
+	if sessionFiscalYear := app.sessionManager.Get(r.Context(), "fiscalYear"); sessionFiscalYear != nil {
+		data["FiscalYear"] = sessionFiscalYear
+	}
+}
+
+func (app *application) homePost(w http.ResponseWriter, r *http.Request) {
+	fiscalYear, payload, ok := app.readHomePost(w, r)
+	if !ok {
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		
-		// Always fetch FiscalYear for exchange rate display
-		fiscalYear, found, err := app.db.GetActiveFiscalYear()
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-		if found {
-			data["FiscalYear"] = fiscalYear
-		}
-		
-		// Check if we have comparison results in session (from POST-Redirect-GET)
-		if app.sessionManager.Exists(r.Context(), "comparisonResults") {
-			// Load from session
-			data["PackageInputs"] = app.sessionManager.Get(r.Context(), "packageInputs")
-			data["Results"] = app.sessionManager.Get(r.Context(), "comparisonResults")
-			data["BestPackage"] = app.sessionManager.Get(r.Context(), "bestPackage")
-			// FiscalYear already set above, but override if session has it
-			if sessionFiscalYear := app.sessionManager.Get(r.Context(), "fiscalYear"); sessionFiscalYear != nil {
-				data["FiscalYear"] = sessionFiscalYear
-			}
-			
-			// Keep session data for PDF export - don't clear it here
-			// Session will be cleared when user submits a new comparison
-		} else {
-			// No results yet, show empty form
-			form.PackageNames = []string{"Paquete 1", "Paquete 2"}
-			data["Form"] = form
-		}
-
-		err = response.Page(w, http.StatusOK, data, "pages/home.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
-
-	case http.MethodPost:
-		err := r.ParseForm()
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		// Get fiscal year configuration
-		fiscalYear, found, err := app.db.GetActiveFiscalYear()
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-		if !found {
-			app.serverError(w, r, fmt.Errorf("no active fiscal year found"))
-			return
-		}
-
-		// Parse arrays from form
-		packageNames := r.Form["PackageName[]"]
-		regimes := r.Form["Regime[]"]
-		salariesStr := r.Form["GrossMonthlySalary[]"]
-		currencies := r.Form["Currency[]"]
-		exchangeRatesStr := r.Form["ExchangeRate[]"]
-		paymentFrequencies := r.Form["PaymentFrequency[]"]
-		hoursPerWeekStr := r.Form["HoursPerWeek[]"]
-		hasAguinaldo := r.Form["HasAguinaldo[]"]
-		aguinaldoDaysStr := r.Form["AguinaldoDays[]"]
-		hasValesDespensa := r.Form["HasValesDespensa[]"]
-		valesDespensaAmountStr := r.Form["ValesDespensaAmount[]"]
-		hasPrimaVacacional := r.Form["HasPrimaVacacional[]"]
-		vacationDaysStr := r.Form["VacationDays[]"]
-		primaVacacionalPercentStr := r.Form["PrimaVacacionalPercent[]"]
-		hasFondoAhorro := r.Form["HasFondoAhorro[]"]
-		fondoAhorroPercentStr := r.Form["FondoAhorroPercent[]"]
-		hasInfonavitCredit := r.Form["HasInfonavitCredit[]"]
-		unpaidVacationDaysStr := r.Form["UnpaidVacationDays[]"]
-		
-		// Equity form data
-		hasEquity := r.Form["HasEquity[]"]
-		initialEquityUSDStr := r.Form["InitialEquityUSD[]"]
-		hasRefreshers := r.Form["HasRefreshers[]"]
-		refresherMinUSDStr := r.Form["RefresherMinUSD[]"]
-		refresherMaxUSDStr := r.Form["RefresherMaxUSD[]"]
-
-		var results []PackageResult
-		var bestPackage *PackageResult
-		var packageInputs []PackageInput
-
-		// Process each package (default to 2)
-		numPackages := len(salariesStr)
-		if numPackages == 0 {
-			numPackages = 2
-		}
-		
-		// Validate at least one package has a valid salary
-		hasValidPackage := false
-		for i := 0; i < numPackages; i++ {
-			if i < len(salariesStr) && salariesStr[i] != "" {
-				salary := 0.0
-				fmt.Sscanf(salariesStr[i], "%f", &salary)
-				if salary > 0 {
-					hasValidPackage = true
-					break
-				}
-			}
-		}
-		
-		if !hasValidPackage {
-			form.Validator.AddFieldError("GrossMonthlySalary", "Debes ingresar al menos un salario válido para comparar")
-			
-			// Restore form with error
-			data := app.newTemplateData(r)
-			data["Form"] = form
-			err = response.Page(w, http.StatusUnprocessableEntity, data, "pages/home.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		for i := 0; i < numPackages; i++ {
-			// Parse salary
-			salaryStr := ""
-			if i < len(salariesStr) {
-				salaryStr = salariesStr[i]
-			}
-			salary := 0.0
-			if salaryStr != "" {
-				fmt.Sscanf(salaryStr, "%f", &salary)
-			}
-
-			if salary <= 0 {
-				continue // Skip invalid packages
-			}
-
-			// Determine regime
-			regime := "sueldos_salarios"
-			if i < len(regimes) {
-				regime = regimes[i]
-			}
-
-			// Currency conversion (USD -> MXN if needed)
-			currency := "MXN"
-			exchangeRate := 20.0 // Default exchange rate
-			if i < len(currencies) {
-				currency = currencies[i]
-			}
-			if currency == "USD" {
-				if i < len(exchangeRatesStr) && exchangeRatesStr[i] != "" {
-					fmt.Sscanf(exchangeRatesStr[i], "%f", &exchangeRate)
-				}
-				salary = salary * exchangeRate // Convert USD to MXN
-			}
-
-			// Payment frequency conversion (convert to monthly if needed)
-			paymentFreq := "monthly"
-			if i < len(paymentFrequencies) && paymentFrequencies[i] != "" {
-				paymentFreq = paymentFrequencies[i]
-			}
-			
-			switch paymentFreq {
-			case "hourly":
-				hoursPerWeek := 40.0 // Default
-				if i < len(hoursPerWeekStr) && hoursPerWeekStr[i] != "" {
-					fmt.Sscanf(hoursPerWeekStr[i], "%f", &hoursPerWeek)
-				}
-				// Convert hourly to monthly: rate * hours/week * 4.33 weeks/month
-				salary = salary * hoursPerWeek * 4.33
-			case "daily":
-				// Convert daily to monthly: daily * 30 days/month
-				salary = salary * 30
-			case "weekly":
-				// Convert weekly to monthly: weekly * 4.33 weeks/month
-				salary = salary * 4.33
-			case "biweekly":
-				// Convert biweekly to monthly: biweekly * 2.17 (26 periods / 12 months)
-				salary = salary * 2.17
-			case "monthly":
-				// Already monthly, no conversion needed
-			}
-
-			// Now salary is in MXN monthly
-
-			// Parse benefits (only for Sueldos y Salarios)
-			hasAguin := false
-			aguinDays := 15
-			hasVales := false
-			valesAmount := 0.0
-			hasPrima := false
-			vacaDays := 12
-			primaPercent := 25.0
-			hasFondo := false
-			fondoPercent := 13.0
-			hasInfonavit := false
-			unpaidVacationDays := 0
-
-			if regime == "sueldos_salarios" {
-				// Check if this package has aguinaldo
-				for _, val := range hasAguinaldo {
-					if val == fmt.Sprintf("%d", i) {
-						hasAguin = true
-						break
-					}
-				}
-				if hasAguin && i < len(aguinaldoDaysStr) {
-					fmt.Sscanf(aguinaldoDaysStr[i], "%d", &aguinDays)
-				}
-
-				// Check vales
-				for _, val := range hasValesDespensa {
-					if val == fmt.Sprintf("%d", i) {
-						hasVales = true
-						break
-					}
-				}
-				if hasVales && i < len(valesDespensaAmountStr) {
-					fmt.Sscanf(valesDespensaAmountStr[i], "%f", &valesAmount)
-				}
-
-				// Check prima
-				for _, val := range hasPrimaVacacional {
-					if val == fmt.Sprintf("%d", i) {
-						hasPrima = true
-						break
-					}
-				}
-				if hasPrima {
-					if i < len(vacationDaysStr) {
-						fmt.Sscanf(vacationDaysStr[i], "%d", &vacaDays)
-					}
-					if i < len(primaVacacionalPercentStr) {
-						fmt.Sscanf(primaVacacionalPercentStr[i], "%f", &primaPercent)
-					}
-				}
-
-				// Check fondo
-				for _, val := range hasFondoAhorro {
-					if val == fmt.Sprintf("%d", i) {
-						hasFondo = true
-						break
-					}
-				}
-				if hasFondo && i < len(fondoAhorroPercentStr) {
-					fmt.Sscanf(fondoAhorroPercentStr[i], "%f", &fondoPercent)
-				}
-				
-				// Check if this package has Infonavit credit
-				for _, val := range hasInfonavitCredit {
-					if val == fmt.Sprintf("%d", i) {
-						hasInfonavit = true
-						break
-					}
-				}
-			} else if regime == "resico" {
-				// Parse unpaid vacation days for RESICO
-				if i < len(unpaidVacationDaysStr) && unpaidVacationDaysStr[i] != "" {
-					fmt.Sscanf(unpaidVacationDaysStr[i], "%d", &unpaidVacationDays)
-				}
-			}
-
-			// Parse "Otras prestaciones" for this package
-			otherBenefits := []OtherBenefit{}
-			otherNamesKey := fmt.Sprintf("OtherBenefitName-%d[]", i)
-			otherAmountsKey := fmt.Sprintf("OtherBenefitAmount-%d[]", i)
-			otherTaxFreeKey := fmt.Sprintf("OtherBenefitTaxFree-%d[]", i)
-			otherCurrencyKey := fmt.Sprintf("OtherBenefitCurrency-%d[]", i)
-			otherCadenceKey := fmt.Sprintf("OtherBenefitCadence-%d[]", i)
-			otherTypeKey := fmt.Sprintf("OtherBenefitType-%d[]", i)
-			
-			otherNames := r.Form[otherNamesKey]
-			otherAmounts := r.Form[otherAmountsKey]
-			otherTaxFree := r.Form[otherTaxFreeKey]
-			otherCurrency := r.Form[otherCurrencyKey]
-			otherCadence := r.Form[otherCadenceKey]
-			otherTypes := r.Form[otherTypeKey]
-			
-			// Build otherBenefits slice
-			for j := 0; j < len(otherNames); j++ {
-				if j >= len(otherAmounts) {
-					break
-				}
-				name := otherNames[j]
-				amountStr := otherAmounts[j]
-				amount := 0.0
-				fmt.Sscanf(amountStr, "%f", &amount)
-				
-				if name == "" || amount <= 0 {
-					continue
-				}
-				
-				// Check if this benefit is tax-free
-				isTaxFree := false
-				checkVal := fmt.Sprintf("%d", j+1)
-				for _, val := range otherTaxFree {
-					if val == checkVal {
-						isTaxFree = true
-						break
-					}
-				}
-				
-				// Get currency and cadence
-				benefitCurrency := "MXN"
-				if j < len(otherCurrency) {
-					benefitCurrency = otherCurrency[j]
-				}
-				
-				benefitCadence := "monthly"
-				if j < len(otherCadence) {
-					benefitCadence = otherCadence[j]
-				}
-				
-				// Check if this is a percentage benefit
-				isPercentage := false
-				if j < len(otherTypes) && otherTypes[j] == "percentage" {
-					isPercentage = true
-					// For percentage, force annual cadence
-					benefitCadence = "annual"
-				}
-				
-				otherBenefits = append(otherBenefits, OtherBenefit{
-					Name:         name,
-					Amount:       amount,
-					TaxFree:      isTaxFree,
-					Currency:     benefitCurrency,
-					Cadence:      benefitCadence,
-					IsPercentage: isPercentage,
-				})
-			}
-
-			// Calculate this package based on regime
-			var result database.SalaryCalculation
-			var err error
-			
-			if regime == "resico" {
-				// RESICO: Simple flat rate calculation, no IMSS, no subsidio
-				result, err = app.calculateRESICO(salary, unpaidVacationDays, otherBenefits, exchangeRate, fiscalYear)
-			} else {
-				// Sueldos y Salarios: Full calculation with benefits, IMSS, etc.
-				result, err = app.calculateSalaryWithBenefits(
-					salary,
-					hasAguin, aguinDays,
-					hasVales, valesAmount,
-					hasPrima, vacaDays, primaPercent,
-					hasFondo, fondoPercent,
-					hasInfonavit,
-					otherBenefits,
-					exchangeRate,
-					fiscalYear,
-				)
-			}
-			
-			if err != nil {
-				app.serverError(w, r, err)
-				return
-			}
-
-			packageName := fmt.Sprintf("Paquete %d", i+1)
-			if i < len(packageNames) && packageNames[i] != "" {
-				packageName = packageNames[i]
-			}
-
-			// Calculate equity if provided
-			var equityConfig *equity.EquityConfig
-			var equitySchedule []equity.YearlyEquity
-			
-			if i < len(initialEquityUSDStr) && initialEquityUSDStr[i] != "" {
-				initialEquity := 0.0
-				fmt.Sscanf(initialEquityUSDStr[i], "%f", &initialEquity)
-				
-				if initialEquity > 0 {
-					refresherMin := 0.0
-					refresherMax := 0.0
-					hasRefresh := false
-					
-					if i < len(hasRefreshers) {
-						for _, val := range hasRefreshers {
-							if val == fmt.Sprintf("%d", i) {
-								hasRefresh = true
-								break
-							}
-						}
-					}
-					
-					if hasRefresh && i < len(refresherMinUSDStr) && i < len(refresherMaxUSDStr) {
-						fmt.Sscanf(refresherMinUSDStr[i], "%f", &refresherMin)
-						fmt.Sscanf(refresherMaxUSDStr[i], "%f", &refresherMax)
-						
-						// Validate min <= max
-						if refresherMin > refresherMax {
-							refresherMin, refresherMax = refresherMax, refresherMin
-						}
-					}
-					
-					equityConfig = &equity.EquityConfig{
-						InitialGrantUSD: initialEquity,
-						HasRefreshers:   hasRefresh && refresherMin > 0 && refresherMax > 0,
-						RefresherMinUSD: refresherMin,
-						RefresherMaxUSD: refresherMax,
-						VestingYears:    4,
-						ExchangeRate:    fiscalYear.USDMXNRate,
-					}
-					
-					equitySchedule = equity.CalculateEquitySchedule(*equityConfig, 4)
-				}
-			}
-
-			packageResult := PackageResult{
-				PackageName:       packageName,
-				SalaryCalculation: &result,
-				EquityConfig:      equityConfig,
-				EquitySchedule:    equitySchedule,
-			}
-
-			results = append(results, packageResult)
-
-			// Capture input values to preserve them
-			exchangeRateStr := ""
-			if i < len(exchangeRatesStr) && exchangeRatesStr[i] != "" {
-				exchangeRateStr = exchangeRatesStr[i]
-			}
-			
-			hoursStr := ""
-			if i < len(hoursPerWeekStr) && hoursPerWeekStr[i] != "" {
-				hoursStr = hoursPerWeekStr[i]
-			}
-			
-			// Parse equity fields
-			hasEquityChecked := false
-			if i < len(hasEquity) {
-				for _, val := range hasEquity {
-					if val == fmt.Sprintf("%d", i) {
-						hasEquityChecked = true
-						break
-					}
-				}
-			}
-			
-			initialEquityUSDVal := ""
-			if i < len(initialEquityUSDStr) && initialEquityUSDStr[i] != "" {
-				initialEquityUSDVal = initialEquityUSDStr[i]
-			}
-			
-			hasRefresh := false
-			if i < len(hasRefreshers) {
-				for _, val := range hasRefreshers {
-					if val == fmt.Sprintf("%d", i) {
-						hasRefresh = true
-						break
-					}
-				}
-			}
-			
-			refresherMinVal := ""
-			if i < len(refresherMinUSDStr) && refresherMinUSDStr[i] != "" {
-				refresherMinVal = refresherMinUSDStr[i]
-			}
-			
-			refresherMaxVal := ""
-			if i < len(refresherMaxUSDStr) && refresherMaxUSDStr[i] != "" {
-				refresherMaxVal = refresherMaxUSDStr[i]
-			}
-			
-			packageInput := PackageInput{
-				Name:                   packageName,
-				Regime:                 regime,
-				Currency:               currency,
-				ExchangeRate:           exchangeRateStr,
-				PaymentFrequency:       paymentFreq,
-				HoursPerWeek:           hoursStr,
-				GrossMonthlySalary:     salaryStr,
-				HasAguinaldo:           hasAguin,
-				AguinaldoDays:          fmt.Sprintf("%d", aguinDays),
-				HasValesDespensa:       hasVales,
-				ValesDespensaAmount:    fmt.Sprintf("%.2f", valesAmount),
-				HasPrimaVacacional:     hasPrima,
-				VacationDays:           fmt.Sprintf("%d", vacaDays),
-				PrimaVacacionalPercent: fmt.Sprintf("%.2f", primaPercent),
-				HasFondoAhorro:         hasFondo,
-				FondoAhorroPercent:     fmt.Sprintf("%.2f", fondoPercent),
-				UnpaidVacationDays:     fmt.Sprintf("%d", unpaidVacationDays),
-				OtherBenefits:          otherBenefits,
-				HasEquity:              hasEquityChecked,
-				InitialEquityUSD:       initialEquityUSDVal,
-				HasRefreshers:          hasRefresh,
-				RefresherMinUSD:        refresherMinVal,
-				RefresherMaxUSD:        refresherMaxVal,
-			}
-			
-			packageInputs = append(packageInputs, packageInput)
-
-			// Determine best package (highest yearly net)
-			if bestPackage == nil || result.YearlyNet > bestPackage.SalaryCalculation.YearlyNet {
-				bestPackage = &packageResult
-			}
-		}
-
-		// Store results in session
-		app.sessionManager.Put(r.Context(), "packageInputs", packageInputs)
-		app.sessionManager.Put(r.Context(), "comparisonResults", results)
-		app.sessionManager.Put(r.Context(), "bestPackage", bestPackage)
-		app.sessionManager.Put(r.Context(), "fiscalYear", fiscalYear)
-
-		// Redirect to GET to prevent form resubmission on refresh (POST-Redirect-GET pattern)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+	results, err := app.buildHomeResults(payload, fiscalYear)
+	if err != nil {
+		app.serverError(w, r, err)
+		return
 	}
+
+	app.storeHomeResults(r, results, fiscalYear)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+type homePostPayload struct {
+	form                    map[string][]string
+	packageNames            []string
+	regimes                 []string
+	salaries                []string
+	currencies              []string
+	exchangeRates           []string
+	paymentFrequencies      []string
+	hoursPerWeek            []string
+	hasAguinaldo            []string
+	aguinaldoDays           []string
+	hasValesDespensa        []string
+	valesDespensaAmounts    []string
+	hasPrimaVacacional      []string
+	vacationDays            []string
+	primaVacacionalPercents []string
+	hasFondoAhorro          []string
+	fondoAhorroPercents     []string
+	hasInfonavitCredit      []string
+	unpaidVacationDays      []string
+	hasEquity               []string
+	initialEquityUSD        []string
+	hasRefreshers           []string
+	refresherMinUSD         []string
+	refresherMaxUSD         []string
+}
+
+type homePackageSalary struct {
+	Original     string
+	Monthly      float64
+	Currency     string
+	ExchangeRate float64
+	PaymentFreq  string
+	HoursPerWeek string
+}
+
+type homeBenefits struct {
+	HasAguinaldo       bool
+	AguinaldoDays      int
+	HasValesDespensa   bool
+	ValesAmount        float64
+	HasPrimaVacacional bool
+	VacationDays       int
+	PrimaPercent       float64
+	HasFondoAhorro     bool
+	FondoPercent       float64
+	HasInfonavit       bool
+	UnpaidVacationDays int
+}
+
+type homeBuildResults struct {
+	PackageInputs []PackageInput
+	Results       []PackageResult
+	BestPackage   *PackageResult
+}
+
+func (app *application) readHomePost(w http.ResponseWriter, r *http.Request) (database.FiscalYear, homePostPayload, bool) {
+	if err := r.ParseForm(); err != nil {
+		app.badRequest(w, r, err)
+		return database.FiscalYear{}, homePostPayload{}, false
+	}
+
+	fiscalYear, ok := app.requireActiveFiscalYear(w, r)
+	payload := newHomePostPayload(r.Form)
+	if !ok {
+		return database.FiscalYear{}, homePostPayload{}, false
+	}
+	if !payload.hasValidPackage() {
+		app.renderInvalidHomeForm(w, r, fiscalYear)
+		return database.FiscalYear{}, homePostPayload{}, false
+	}
+	return fiscalYear, payload, true
+}
+
+func (app *application) requireActiveFiscalYear(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
+	fiscalYear, found, err := app.db.GetActiveFiscalYear()
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.FiscalYear{}, false
+	}
+	if !found {
+		app.serverError(w, r, fmt.Errorf("no active fiscal year found"))
+		return database.FiscalYear{}, false
+	}
+	return fiscalYear, true
+}
+
+func (app *application) renderInvalidHomeForm(w http.ResponseWriter, r *http.Request, fiscalYear database.FiscalYear) {
+	var form homeForm
+	form.Validator.AddFieldError("GrossMonthlySalary", "Debes ingresar al menos un salario válido para comparar")
+	data := app.newTemplateData(r)
+	data["FiscalYear"] = fiscalYear
+	data["Form"] = form
+	app.renderHome(w, r, http.StatusUnprocessableEntity, data)
+}
+
+func (app *application) renderHome(w http.ResponseWriter, r *http.Request, status int, data map[string]any) {
+	app.renderPage(w, r, status, data, "pages/home.tmpl")
+}
+
+func (app *application) renderFormPage(w http.ResponseWriter, r *http.Request, status int, page string, form any) {
+	data := app.newTemplateData(r)
+	data["Form"] = form
+	app.renderPage(w, r, status, data, page)
+}
+
+func (app *application) renderPage(w http.ResponseWriter, r *http.Request, status int, data map[string]any, page string) {
+	err := responsePage(w, status, data, page)
+	if err != nil {
+		app.serverError(w, r, err)
+	}
+}
+
+func newHomePostPayload(form map[string][]string) homePostPayload {
+	return homePostPayload{
+		form:                    form,
+		packageNames:            form["PackageName[]"],
+		regimes:                 form["Regime[]"],
+		salaries:                form["GrossMonthlySalary[]"],
+		currencies:              form["Currency[]"],
+		exchangeRates:           form["ExchangeRate[]"],
+		paymentFrequencies:      form["PaymentFrequency[]"],
+		hoursPerWeek:            form["HoursPerWeek[]"],
+		hasAguinaldo:            form["HasAguinaldo[]"],
+		aguinaldoDays:           form["AguinaldoDays[]"],
+		hasValesDespensa:        form["HasValesDespensa[]"],
+		valesDespensaAmounts:    form["ValesDespensaAmount[]"],
+		hasPrimaVacacional:      form["HasPrimaVacacional[]"],
+		vacationDays:            form["VacationDays[]"],
+		primaVacacionalPercents: form["PrimaVacacionalPercent[]"],
+		hasFondoAhorro:          form["HasFondoAhorro[]"],
+		fondoAhorroPercents:     form["FondoAhorroPercent[]"],
+		hasInfonavitCredit:      form["HasInfonavitCredit[]"],
+		unpaidVacationDays:      form["UnpaidVacationDays[]"],
+		hasEquity:               form["HasEquity[]"],
+		initialEquityUSD:        form["InitialEquityUSD[]"],
+		hasRefreshers:           form["HasRefreshers[]"],
+		refresherMinUSD:         form["RefresherMinUSD[]"],
+		refresherMaxUSD:         form["RefresherMaxUSD[]"],
+	}
+}
+
+func (payload homePostPayload) numPackages() int {
+	if len(payload.salaries) == 0 {
+		return 2
+	}
+	return len(payload.salaries)
+}
+
+func (payload homePostPayload) hasValidPackage() bool {
+	for i := 0; i < payload.numPackages(); i++ {
+		if parseFloat(indexedValue(payload.salaries, i, "0"), 0) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (payload homePostPayload) salary(index int) (homePackageSalary, bool) {
+	salary := homePackageSalary{
+		Original:     indexedValue(payload.salaries, index, ""),
+		Currency:     indexedValue(payload.currencies, index, "MXN"),
+		ExchangeRate: parseFloat(indexedValue(payload.exchangeRates, index, ""), 20.0),
+		PaymentFreq:  indexedValue(payload.paymentFrequencies, index, "monthly"),
+		HoursPerWeek: indexedValue(payload.hoursPerWeek, index, ""),
+	}
+	salary.Monthly = parseFloat(salary.Original, 0)
+	if salary.Monthly <= 0 {
+		return salary, false
+	}
+	if salary.Currency == "USD" {
+		salary.Monthly *= salary.ExchangeRate
+	}
+	salary.Monthly = monthlySalary(salary.Monthly, salary.PaymentFreq, parseFloat(salary.HoursPerWeek, 40.0))
+	return salary, true
+}
+
+func (payload homePostPayload) benefits(index int, regime string) homeBenefits {
+	if regime == "resico" {
+		return homeBenefits{UnpaidVacationDays: parseInt(indexedValue(payload.unpaidVacationDays, index, ""), 0)}
+	}
+	benefits := homeBenefits{}
+	benefits.HasAguinaldo, benefits.AguinaldoDays = checkedInt(index, payload.hasAguinaldo, payload.aguinaldoDays, 15)
+	benefits.HasValesDespensa, benefits.ValesAmount = checkedFloat(index, payload.hasValesDespensa, payload.valesDespensaAmounts, 0)
+	benefits.HasPrimaVacacional, benefits.VacationDays = checkedInt(index, payload.hasPrimaVacacional, payload.vacationDays, 12)
+	_, benefits.PrimaPercent = checkedFloat(index, payload.hasPrimaVacacional, payload.primaVacacionalPercents, 25)
+	benefits.HasFondoAhorro, benefits.FondoPercent = checkedFloat(index, payload.hasFondoAhorro, payload.fondoAhorroPercents, 13)
+	benefits.HasInfonavit = containsIndex(payload.hasInfonavitCredit, index)
+	return benefits
+}
+
+func (payload homePostPayload) otherBenefits(index int) []OtherBenefit {
+	names := payload.form[fmt.Sprintf("OtherBenefitName-%d[]", index)]
+	benefits := make([]OtherBenefit, 0, len(names))
+	for i, name := range names {
+		if benefit, ok := payload.otherBenefit(index, i, name); ok {
+			benefits = append(benefits, benefit)
+		}
+	}
+	return benefits
+}
+
+func (payload homePostPayload) otherBenefit(packageIndex, benefitIndex int, name string) (OtherBenefit, bool) {
+	amounts := payload.form[fmt.Sprintf("OtherBenefitAmount-%d[]", packageIndex)]
+	amount := parseFloat(indexedValue(amounts, benefitIndex, ""), 0)
+	if name == "" || amount <= 0 {
+		return OtherBenefit{}, false
+	}
+	cadence := indexedValue(payload.form[fmt.Sprintf("OtherBenefitCadence-%d[]", packageIndex)], benefitIndex, "monthly")
+	isPercentage := indexedValue(payload.form[fmt.Sprintf("OtherBenefitType-%d[]", packageIndex)], benefitIndex, "") == "percentage"
+	if isPercentage {
+		cadence = "annual"
+	}
+	return OtherBenefit{
+		Name:         name,
+		Amount:       amount,
+		TaxFree:      containsIndex(payload.form[fmt.Sprintf("OtherBenefitTaxFree-%d[]", packageIndex)], benefitIndex+1),
+		Currency:     indexedValue(payload.form[fmt.Sprintf("OtherBenefitCurrency-%d[]", packageIndex)], benefitIndex, "MXN"),
+		Cadence:      cadence,
+		IsPercentage: isPercentage,
+	}, true
+}
+
+func (payload homePostPayload) equity(index int, fiscalYear database.FiscalYear) (*equity.EquityConfig, []equity.YearlyEquity) {
+	initialEquity := parseFloat(indexedValue(payload.initialEquityUSD, index, ""), 0)
+	if initialEquity <= 0 {
+		return nil, nil
+	}
+	hasRefresh, refresherMin, refresherMax := payload.refreshers(index)
+	config := equity.EquityConfig{
+		InitialGrantUSD: initialEquity,
+		HasRefreshers:   hasRefresh && refresherMin > 0 && refresherMax > 0,
+		RefresherMinUSD: refresherMin,
+		RefresherMaxUSD: refresherMax,
+		VestingYears:    4,
+		ExchangeRate:    fiscalYear.USDMXNRate,
+	}
+	schedule := equity.CalculateEquitySchedule(config, 4)
+	return &config, schedule
+}
+
+func (payload homePostPayload) refreshers(index int) (bool, float64, float64) {
+	refresherMin := parseFloat(indexedValue(payload.refresherMinUSD, index, ""), 0)
+	refresherMax := parseFloat(indexedValue(payload.refresherMaxUSD, index, ""), 0)
+	if refresherMin > refresherMax {
+		refresherMin, refresherMax = refresherMax, refresherMin
+	}
+	return containsIndex(payload.hasRefreshers, index), refresherMin, refresherMax
+}
+
+func (payload homePostPayload) packageInput(index int, name string, salary homePackageSalary, benefits homeBenefits, otherBenefits []OtherBenefit) PackageInput {
+	return PackageInput{
+		Name:                   name,
+		Regime:                 indexedValue(payload.regimes, index, "sueldos_salarios"),
+		Currency:               salary.Currency,
+		ExchangeRate:           indexedValue(payload.exchangeRates, index, ""),
+		PaymentFrequency:       salary.PaymentFreq,
+		HoursPerWeek:           salary.HoursPerWeek,
+		GrossMonthlySalary:     salary.Original,
+		HasAguinaldo:           benefits.HasAguinaldo,
+		AguinaldoDays:          fmt.Sprintf("%d", benefits.AguinaldoDays),
+		HasValesDespensa:       benefits.HasValesDespensa,
+		ValesDespensaAmount:    fmt.Sprintf("%.2f", benefits.ValesAmount),
+		HasPrimaVacacional:     benefits.HasPrimaVacacional,
+		VacationDays:           fmt.Sprintf("%d", benefits.VacationDays),
+		PrimaVacacionalPercent: fmt.Sprintf("%.2f", benefits.PrimaPercent),
+		HasFondoAhorro:         benefits.HasFondoAhorro,
+		FondoAhorroPercent:     fmt.Sprintf("%.2f", benefits.FondoPercent),
+		UnpaidVacationDays:     fmt.Sprintf("%d", benefits.UnpaidVacationDays),
+		OtherBenefits:          otherBenefits,
+		HasEquity:              containsIndex(payload.hasEquity, index),
+		InitialEquityUSD:       indexedValue(payload.initialEquityUSD, index, ""),
+		HasRefreshers:          containsIndex(payload.hasRefreshers, index),
+		RefresherMinUSD:        indexedValue(payload.refresherMinUSD, index, ""),
+		RefresherMaxUSD:        indexedValue(payload.refresherMaxUSD, index, ""),
+	}
+}
+
+func (app *application) buildHomeResults(payload homePostPayload, fiscalYear database.FiscalYear) (homeBuildResults, error) {
+	results := homeBuildResults{}
+	for i := 0; i < payload.numPackages(); i++ {
+		if err := app.addHomePackage(&results, payload, fiscalYear, i); err != nil {
+			return homeBuildResults{}, err
+		}
+	}
+	return results, nil
+}
+
+func (app *application) addHomePackage(results *homeBuildResults, payload homePostPayload, fiscalYear database.FiscalYear, index int) error {
+	result, input, ok, err := app.buildHomePackage(payload, fiscalYear, index)
+	if err != nil {
+		return err
+	}
+	if ok {
+		results.add(result, input)
+	}
+	return nil
+}
+
+func (app *application) buildHomePackage(payload homePostPayload, fiscalYear database.FiscalYear, index int) (PackageResult, PackageInput, bool, error) {
+	salary, ok := payload.salary(index)
+	if !ok {
+		return PackageResult{}, PackageInput{}, false, nil
+	}
+	regime := indexedValue(payload.regimes, index, "sueldos_salarios")
+	benefits := payload.benefits(index, regime)
+	otherBenefits := payload.otherBenefits(index)
+	calculation, err := app.calculateHomePackage(regime, salary, benefits, otherBenefits, fiscalYear)
+	if err != nil {
+		return PackageResult{}, PackageInput{}, false, err
+	}
+	name := indexedValue(payload.packageNames, index, fmt.Sprintf("Paquete %d", index+1))
+	equityConfig, equitySchedule := payload.equity(index, fiscalYear)
+	result := PackageResult{name, &calculation, equityConfig, equitySchedule}
+	return result, payload.packageInput(index, name, salary, benefits, otherBenefits), true, nil
+}
+
+func (app *application) calculateHomePackage(regime string, salary homePackageSalary, benefits homeBenefits, otherBenefits []OtherBenefit, fiscalYear database.FiscalYear) (database.SalaryCalculation, error) {
+	if regime == "resico" {
+		return app.calculateRESICO(salary.Monthly, benefits.UnpaidVacationDays, otherBenefits, salary.ExchangeRate, fiscalYear)
+	}
+	return app.calculateSalaryWithBenefits(
+		salary.Monthly,
+		benefits.HasAguinaldo, benefits.AguinaldoDays,
+		benefits.HasValesDespensa, benefits.ValesAmount,
+		benefits.HasPrimaVacacional, benefits.VacationDays, benefits.PrimaPercent,
+		benefits.HasFondoAhorro, benefits.FondoPercent,
+		benefits.HasInfonavit,
+		otherBenefits,
+		salary.ExchangeRate,
+		fiscalYear,
+	)
+}
+
+func (results *homeBuildResults) add(result PackageResult, input PackageInput) {
+	results.Results = append(results.Results, result)
+	results.PackageInputs = append(results.PackageInputs, input)
+	if results.BestPackage == nil || result.YearlyNet > results.BestPackage.SalaryCalculation.YearlyNet {
+		results.BestPackage = &result
+	}
+}
+
+func (app *application) storeHomeResults(r *http.Request, results homeBuildResults, fiscalYear database.FiscalYear) {
+	app.sessionManager.Put(r.Context(), "packageInputs", results.PackageInputs)
+	app.sessionManager.Put(r.Context(), "comparisonResults", results.Results)
+	app.sessionManager.Put(r.Context(), "bestPackage", results.BestPackage)
+	app.sessionManager.Put(r.Context(), "fiscalYear", fiscalYear)
+}
+
+func indexedValue(values []string, index int, fallback string) string {
+	if index < len(values) && values[index] != "" {
+		return values[index]
+	}
+	return fallback
+}
+
+func parseFloat(value string, fallback float64) float64 {
+	if value == "" {
+		return fallback
+	}
+	result := fallback
+	fmt.Sscanf(value, "%f", &result)
+	return result
+}
+
+func parseInt(value string, fallback int) int {
+	if value == "" {
+		return fallback
+	}
+	result := fallback
+	fmt.Sscanf(value, "%d", &result)
+	return result
+}
+
+func monthlySalary(amount float64, frequency string, hoursPerWeek float64) float64 {
+	if frequency == "hourly" {
+		return amount * hoursPerWeek * 4.33
+	}
+	multipliers := map[string]float64{"daily": 30, "weekly": 4.33, "biweekly": 2.17, "monthly": 1}
+	multiplier := multipliers[frequency]
+	if multiplier == 0 {
+		multiplier = 1
+	}
+	return amount * multiplier
+}
+
+func checkedInt(index int, selections []string, values []string, fallback int) (bool, int) {
+	checked := containsIndex(selections, index)
+	if checked {
+		return true, parseInt(indexedValue(values, index, ""), fallback)
+	}
+	return false, fallback
+}
+
+func checkedFloat(index int, selections []string, values []string, fallback float64) (bool, float64) {
+	checked := containsIndex(selections, index)
+	if checked {
+		return true, parseFloat(indexedValue(values, index, ""), fallback)
+	}
+	return false, fallback
+}
+
+func containsIndex(values []string, index int) bool {
+	want := strconv.Itoa(index)
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (app *application) signup(w http.ResponseWriter, r *http.Request) {
-	var form struct {
-		Email     string              `form:"Email"`
-		Password  string              `form:"Password"`
-		Validator validator.Validator `form:"-"`
+	form := signupForm{}
+	if r.Method == http.MethodGet {
+		app.renderFormPage(w, r, http.StatusOK, "pages/signup.tmpl", form)
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		data["Form"] = form
+	app.signupPost(w, r, &form)
+}
 
-		err := response.Page(w, http.StatusOK, data, "pages/signup.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+type signupForm struct {
+	Email     string              `form:"Email"`
+	Password  string              `form:"Password"`
+	Validator validator.Validator `form:"-"`
+}
 
-	case http.MethodPost:
-		err := request.DecodePostForm(r, &form)
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		_, found, err := app.db.GetUserByEmail(form.Email)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		form.Validator.CheckField(form.Email != "", "Email", "Email is required")
-		form.Validator.CheckField(validator.Matches(form.Email, validator.RgxEmail), "Email", "Must be a valid email address")
-		form.Validator.CheckField(!found, "Email", "Email is already in use")
-
-		form.Validator.CheckField(form.Password != "", "Password", "Password is required")
-		form.Validator.CheckField(len(form.Password) >= 8, "Password", "Password is too short")
-		form.Validator.CheckField(len(form.Password) <= 72, "Password", "Password is too long")
-		form.Validator.CheckField(validator.NotIn(form.Password, password.CommonPasswords...), "Password", "Password is too common")
-
-		if form.Validator.HasErrors() {
-			data := app.newTemplateData(r)
-			data["Form"] = form
-
-			err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/signup.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		hashedPassword, err := password.Hash(form.Password)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		id, err := app.db.InsertUser(form.Email, hashedPassword)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		err = app.sessionManager.RenewToken(r.Context())
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
-
-		// Generate verification token
-		plaintextToken := token.New()
-		hashedToken := token.Hash(plaintextToken)
-
-		// Store verification token in database
-		err = app.db.InsertEmailVerificationToken(id, hashedToken)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		// Send welcome email with verification link in background
-		app.backgroundTask(r, func() error {
-			data := app.newEmailData()
-			data["Email"] = form.Email
-			data["VerificationToken"] = plaintextToken
-			return app.mailer.Send(form.Email, data, "welcome.tmpl")
-		})
-
-		http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
+func (app *application) signupPost(w http.ResponseWriter, r *http.Request, form *signupForm) {
+	if err := request.DecodePostForm(r, form); err != nil {
+		app.badRequest(w, r, err)
+		return
 	}
+
+	if !app.prepareSignup(w, r, form) {
+		return
+	}
+
+	id, plaintextToken, ok := app.finishSignup(w, r, form)
+	if !ok {
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
+	app.sendWelcomeVerificationEmail(r, form.Email, plaintextToken)
+	http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
+}
+
+func (app *application) prepareSignup(w http.ResponseWriter, r *http.Request, form *signupForm) bool {
+	_, found, err := app.db.GetUserByEmail(form.Email)
+	if err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	validateSignupForm(form, found)
+	if !form.Validator.HasErrors() {
+		return true
+	}
+
+	app.renderFormPage(w, r, http.StatusUnprocessableEntity, "pages/signup.tmpl", form)
+	return false
+}
+
+func validateSignupForm(form *signupForm, found bool) {
+	form.Validator.CheckField(form.Email != "", "Email", "Email is required")
+	form.Validator.CheckField(validator.Matches(form.Email, validator.RgxEmail), "Email", "Must be a valid email address")
+	form.Validator.CheckField(!found, "Email", "Email is already in use")
+	form.Validator.CheckField(form.Password != "", "Password", "Password is required")
+	form.Validator.CheckField(len(form.Password) >= 8, "Password", "Password is too short")
+	form.Validator.CheckField(len(form.Password) <= 72, "Password", "Password is too long")
+	form.Validator.CheckField(validator.NotIn(form.Password, password.CommonPasswords...), "Password", "Password is too common")
+}
+
+func (app *application) finishSignup(w http.ResponseWriter, r *http.Request, form *signupForm) (int, string, bool) {
+	id, err := app.createSignupUser(form)
+	if err != nil {
+		app.serverError(w, r, err)
+		return 0, "", false
+	}
+
+	if err = renewSessionToken(app.sessionManager, r.Context()); err != nil {
+		app.serverError(w, r, err)
+		return 0, "", false
+	}
+
+	plaintextToken, err := app.insertVerificationToken(id)
+	if err != nil {
+		app.serverError(w, r, err)
+		return 0, "", false
+	}
+
+	return id, plaintextToken, true
+}
+
+func (app *application) createSignupUser(form *signupForm) (int, error) {
+	hashedPassword, err := password.Hash(form.Password)
+	if err != nil {
+		return 0, err
+	}
+
+	return app.db.InsertUser(form.Email, hashedPassword)
+}
+
+func (app *application) insertVerificationToken(userID int) (string, error) {
+	plaintextToken := token.New()
+	hashedToken := token.Hash(plaintextToken)
+	err := app.db.InsertEmailVerificationToken(userID, hashedToken)
+	return plaintextToken, err
+}
+
+func (app *application) sendWelcomeVerificationEmail(r *http.Request, email string, plaintextToken string) {
+	app.backgroundTask(r, func() error {
+		data := app.newEmailData()
+		data["Email"] = email
+		data["VerificationToken"] = plaintextToken
+		return sendMail(app.mailer, email, data, "welcome.tmpl")
+	})
 }
 
 func (app *application) login(w http.ResponseWriter, r *http.Request) {
-	var form struct {
-		Email     string              `form:"Email"`
-		Password  string              `form:"Password"`
-		Validator validator.Validator `form:"-"`
+	form := loginForm{}
+	if r.Method == http.MethodGet {
+		app.renderFormPage(w, r, http.StatusOK, "pages/login.tmpl", form)
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		data["Form"] = form
+	app.loginPost(w, r, &form)
+}
 
-		err := response.Page(w, http.StatusOK, data, "pages/login.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+type loginForm struct {
+	Email     string              `form:"Email"`
+	Password  string              `form:"Password"`
+	Validator validator.Validator `form:"-"`
+}
 
-	case http.MethodPost:
-		err := request.DecodePostForm(r, &form)
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		user, found, err := app.db.GetUserByEmail(form.Email)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		form.Validator.CheckField(form.Email != "", "Email", "Email is required")
-		form.Validator.CheckField(found, "Email", "Email address could not be found")
-
-		if found {
-			passwordMatches, err := password.Matches(form.Password, user.HashedPassword)
-			if err != nil {
-				app.serverError(w, r, err)
-				return
-			}
-
-			form.Validator.CheckField(form.Password != "", "Password", "Password is required")
-			form.Validator.CheckField(passwordMatches, "Password", "Password is incorrect")
-		}
-
-		if form.Validator.HasErrors() {
-			data := app.newTemplateData(r)
-			data["Form"] = form
-
-			err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/login.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		err = app.sessionManager.RenewToken(r.Context())
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		app.sessionManager.Put(r.Context(), "authenticatedUserID", user.ID)
-
-		redirectPath := app.sessionManager.PopString(r.Context(), "redirectPathAfterLogin")
-		if redirectPath != "" {
-			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
-			return
-		}
-
-		http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
+func (app *application) loginPost(w http.ResponseWriter, r *http.Request, form *loginForm) {
+	if err := request.DecodePostForm(r, form); err != nil {
+		app.badRequest(w, r, err)
+		return
 	}
+
+	user, ok := app.validLoginUser(w, r, form)
+	if !ok {
+		return
+	}
+
+	if !app.loginUser(w, r, user.ID) {
+		return
+	}
+
+	app.redirectAfterLogin(w, r)
+}
+
+func (app *application) validLoginUser(w http.ResponseWriter, r *http.Request, form *loginForm) (database.User, bool) {
+	user, found, err := app.db.GetUserByEmail(form.Email)
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.User{}, false
+	}
+
+	if err := validateLoginForm(form, user, found); err != nil {
+		app.serverError(w, r, err)
+		return database.User{}, false
+	}
+
+	if !form.Validator.HasErrors() {
+		return user, true
+	}
+
+	app.renderFormPage(w, r, http.StatusUnprocessableEntity, "pages/login.tmpl", form)
+	return database.User{}, false
+}
+
+func validateLoginForm(form *loginForm, user database.User, found bool) error {
+	form.Validator.CheckField(form.Email != "", "Email", "Email is required")
+	form.Validator.CheckField(found, "Email", "Email address could not be found")
+	if !found {
+		return nil
+	}
+
+	passwordMatches, err := password.Matches(form.Password, user.HashedPassword)
+	if err != nil {
+		return err
+	}
+
+	form.Validator.CheckField(form.Password != "", "Password", "Password is required")
+	form.Validator.CheckField(passwordMatches, "Password", "Password is incorrect")
+	return nil
+}
+
+func (app *application) loginUser(w http.ResponseWriter, r *http.Request, userID int) bool {
+	if err := renewSessionToken(app.sessionManager, r.Context()); err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", userID)
+	return true
+}
+
+func (app *application) redirectAfterLogin(w http.ResponseWriter, r *http.Request) {
+	redirectPath := app.sessionManager.PopString(r.Context(), "redirectPathAfterLogin")
+	if redirectPath != "" {
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
+		return
+	}
+
+	http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
 }
 
 func (app *application) logout(w http.ResponseWriter, r *http.Request) {
-	err := app.sessionManager.RenewToken(r.Context())
+	err := renewSessionToken(app.sessionManager, r.Context())
 	if err != nil {
 		app.serverError(w, r, err)
 		return
@@ -767,76 +765,83 @@ func (app *application) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) forgottenPassword(w http.ResponseWriter, r *http.Request) {
-	var form struct {
-		Email     string              `form:"Email"`
-		Validator validator.Validator `form:"-"`
+	form := forgottenPasswordForm{}
+	if r.Method == http.MethodGet {
+		app.renderFormPage(w, r, http.StatusOK, "pages/forgotten-password.tmpl", form)
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		data["Form"] = form
+	app.forgottenPasswordPost(w, r, &form)
+}
 
-		err := response.Page(w, http.StatusOK, data, "pages/forgotten-password.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+type forgottenPasswordForm struct {
+	Email     string              `form:"Email"`
+	Validator validator.Validator `form:"-"`
+}
 
-	case http.MethodPost:
-		err := request.DecodePostForm(r, &form)
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		user, found, err := app.db.GetUserByEmail(form.Email)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		form.Validator.CheckField(form.Email != "", "Email", "Email is required")
-		form.Validator.CheckField(validator.Matches(form.Email, validator.RgxEmail), "Email", "Must be a valid email address")
-		form.Validator.CheckField(found, "Email", "No matching email found")
-
-		if form.Validator.HasErrors() {
-			data := app.newTemplateData(r)
-			data["Form"] = form
-
-			err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/forgotten-password.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		plaintextToken := token.New()
-
-		hashedToken := token.Hash(plaintextToken)
-
-		err = app.db.InsertPasswordReset(hashedToken, user.ID, 24*time.Hour)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		data := app.newEmailData()
-		data["PlaintextToken"] = plaintextToken
-
-		err = app.mailer.Send(user.Email, data, "forgotten-password.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		http.Redirect(w, r, "/forgotten-password-confirmation", http.StatusSeeOther)
+func (app *application) forgottenPasswordPost(w http.ResponseWriter, r *http.Request, form *forgottenPasswordForm) {
+	if err := request.DecodePostForm(r, form); err != nil {
+		app.badRequest(w, r, err)
+		return
 	}
+
+	user, ok := app.validForgottenPasswordUser(w, r, form)
+	if !ok {
+		return
+	}
+
+	if !app.sendPasswordResetEmail(w, r, user) {
+		return
+	}
+
+	http.Redirect(w, r, "/forgotten-password-confirmation", http.StatusSeeOther)
+}
+
+func (app *application) validForgottenPasswordUser(w http.ResponseWriter, r *http.Request, form *forgottenPasswordForm) (database.User, bool) {
+	user, found, err := app.db.GetUserByEmail(form.Email)
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.User{}, false
+	}
+
+	validateForgottenPasswordForm(form, found)
+	if !form.Validator.HasErrors() {
+		return user, true
+	}
+
+	app.renderFormPage(w, r, http.StatusUnprocessableEntity, "pages/forgotten-password.tmpl", form)
+	return database.User{}, false
+}
+
+func validateForgottenPasswordForm(form *forgottenPasswordForm, found bool) {
+	form.Validator.CheckField(form.Email != "", "Email", "Email is required")
+	form.Validator.CheckField(validator.Matches(form.Email, validator.RgxEmail), "Email", "Must be a valid email address")
+	form.Validator.CheckField(found, "Email", "No matching email found")
+}
+
+func (app *application) sendPasswordResetEmail(w http.ResponseWriter, r *http.Request, user database.User) bool {
+	plaintextToken := token.New()
+	hashedToken := token.Hash(plaintextToken)
+
+	if err := app.db.InsertPasswordReset(hashedToken, user.ID, 24*time.Hour); err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	data := app.newEmailData()
+	data["PlaintextToken"] = plaintextToken
+	if err := sendMail(app.mailer, user.Email, data, "forgotten-password.tmpl"); err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	return true
 }
 
 func (app *application) forgottenPasswordConfirmation(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 
-	err := response.Page(w, http.StatusOK, data, "pages/forgotten-password-confirmation.tmpl")
+	err := responsePage(w, http.StatusOK, data, "pages/forgotten-password-confirmation.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -844,92 +849,103 @@ func (app *application) forgottenPasswordConfirmation(w http.ResponseWriter, r *
 
 func (app *application) passwordReset(w http.ResponseWriter, r *http.Request) {
 	plaintextToken := r.PathValue("plaintextToken")
+	passwordReset, ok := app.validPasswordReset(w, r, plaintextToken)
+	if !ok {
+		return
+	}
 
-	hashedToken := token.Hash(plaintextToken)
+	form := passwordResetForm{}
+	if r.Method == http.MethodGet {
+		app.renderPasswordResetForm(w, r, http.StatusOK, form, plaintextToken)
+		return
+	}
 
-	passwordReset, found, err := app.db.GetPasswordReset(hashedToken)
+	app.passwordResetPost(w, r, &form, passwordReset)
+}
+
+type passwordResetForm struct {
+	NewPassword string              `form:"NewPassword"`
+	Validator   validator.Validator `form:"-"`
+}
+
+func (app *application) validPasswordReset(w http.ResponseWriter, r *http.Request, plaintextToken string) (database.PasswordReset, bool) {
+	passwordReset, found, err := app.db.GetPasswordReset(token.Hash(plaintextToken))
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return database.PasswordReset{}, false
 	}
 
 	if !found {
-		data := app.newTemplateData(r)
-		data["InvalidLink"] = true
+		app.renderInvalidPasswordReset(w, r)
+		return database.PasswordReset{}, false
+	}
 
-		err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/password-reset.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+	return passwordReset, true
+}
+
+func (app *application) renderInvalidPasswordReset(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data["InvalidLink"] = true
+	app.renderPage(w, r, http.StatusUnprocessableEntity, data, "pages/password-reset.tmpl")
+}
+
+func (app *application) renderPasswordResetForm(w http.ResponseWriter, r *http.Request, status int, form passwordResetForm, plaintextToken string) {
+	data := app.newTemplateData(r)
+	data["Form"] = form
+	data["PlaintextToken"] = plaintextToken
+	app.renderPage(w, r, status, data, "pages/password-reset.tmpl")
+}
+
+func (app *application) passwordResetPost(w http.ResponseWriter, r *http.Request, form *passwordResetForm, passwordReset database.PasswordReset) {
+	if err := request.DecodePostForm(r, form); err != nil {
+		app.badRequest(w, r, err)
 		return
 	}
 
-	var form struct {
-		NewPassword string              `form:"NewPassword"`
-		Validator   validator.Validator `form:"-"`
+	validatePasswordResetForm(form)
+	if form.Validator.HasErrors() {
+		app.renderPasswordResetForm(w, r, http.StatusUnprocessableEntity, *form, r.PathValue("plaintextToken"))
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		data["Form"] = form
-		data["PlaintextToken"] = plaintextToken
-
-		err := response.Page(w, http.StatusOK, data, "pages/password-reset.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
-
-	case http.MethodPost:
-		err := request.DecodePostForm(r, &form)
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		form.Validator.CheckField(form.NewPassword != "", "NewPassword", "La contraseña es obligatoria")
-		form.Validator.CheckField(len(form.NewPassword) >= 8, "NewPassword", "La contraseña debe tener al menos 8 caracteres")
-		form.Validator.CheckField(len(form.NewPassword) <= 72, "NewPassword", "La contraseña es demasiado larga (máximo 72 caracteres)")
-		form.Validator.CheckField(validator.NotIn(form.NewPassword, password.CommonPasswords...), "NewPassword", "Esta contraseña es muy común. Usa una más segura")
-
-		if form.Validator.HasErrors() {
-			data := app.newTemplateData(r)
-			data["Form"] = form
-			data["PlaintextToken"] = plaintextToken
-
-			err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/password-reset.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		hashedPassword, err := password.Hash(form.NewPassword)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		err = app.db.UpdateUserHashedPassword(passwordReset.UserID, hashedPassword)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		err = app.db.DeletePasswordResets(passwordReset.UserID)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		http.Redirect(w, r, "/password-reset-confirmation", http.StatusSeeOther)
+	if !app.updateResetPassword(w, r, passwordReset.UserID, form.NewPassword) {
+		return
 	}
+
+	http.Redirect(w, r, "/password-reset-confirmation", http.StatusSeeOther)
+}
+
+func validatePasswordResetForm(form *passwordResetForm) {
+	form.Validator.CheckField(form.NewPassword != "", "NewPassword", "La contraseña es obligatoria")
+	form.Validator.CheckField(len(form.NewPassword) >= 8, "NewPassword", "La contraseña debe tener al menos 8 caracteres")
+	form.Validator.CheckField(len(form.NewPassword) <= 72, "NewPassword", "La contraseña es demasiado larga (máximo 72 caracteres)")
+	form.Validator.CheckField(validator.NotIn(form.NewPassword, password.CommonPasswords...), "NewPassword", "Esta contraseña es muy común. Usa una más segura")
+}
+
+func (app *application) updateResetPassword(w http.ResponseWriter, r *http.Request, userID int, newPassword string) bool {
+	hashedPassword, err := password.Hash(newPassword)
+	if err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	if err = app.db.UpdateUserHashedPassword(userID, hashedPassword); err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	if err = app.db.DeletePasswordResets(userID); err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+
+	return true
 }
 
 func (app *application) passwordResetConfirmation(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 
-	err := response.Page(w, http.StatusOK, data, "pages/password-reset-confirmation.tmpl")
+	err := responsePage(w, http.StatusOK, data, "pages/password-reset-confirmation.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -938,86 +954,90 @@ func (app *application) passwordResetConfirmation(w http.ResponseWriter, r *http
 func (app *application) restricted(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 
-	err := response.Page(w, http.StatusOK, data, "pages/restricted.tmpl")
+	err := responsePage(w, http.StatusOK, data, "pages/restricted.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
 }
 
 func (app *application) salaryCalculator(w http.ResponseWriter, r *http.Request) {
-	var form struct {
-		GrossMonthlySalary float64             `form:"GrossMonthlySalary"`
-		YearsOfService     int                 `form:"YearsOfService"`
-		Validator          validator.Validator `form:"-"`
+	form := calculatorForm{}
+	if r.Method == http.MethodGet {
+		app.renderFormPage(w, r, http.StatusOK, "pages/calculator.tmpl", form)
+		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		data := app.newTemplateData(r)
-		data["Form"] = form
+	app.salaryCalculatorPost(w, r, &form)
+}
 
-		err := response.Page(w, http.StatusOK, data, "pages/calculator.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+type calculatorForm struct {
+	GrossMonthlySalary float64             `form:"GrossMonthlySalary"`
+	YearsOfService     int                 `form:"YearsOfService"`
+	Validator          validator.Validator `form:"-"`
+}
 
-	case http.MethodPost:
-		err := request.DecodePostForm(r, &form)
-		if err != nil {
-			app.badRequest(w, r, err)
-			return
-		}
-
-		form.Validator.CheckField(form.GrossMonthlySalary > 0, "GrossMonthlySalary", "El salario debe ser mayor a 0")
-		form.Validator.CheckField(form.GrossMonthlySalary <= 1000000, "GrossMonthlySalary", "El salario es demasiado alto")
-		form.Validator.CheckField(form.YearsOfService >= 0, "YearsOfService", "Los años de servicio no pueden ser negativos")
-
-		if form.Validator.HasErrors() {
-			data := app.newTemplateData(r)
-			data["Form"] = form
-
-			err := response.Page(w, http.StatusUnprocessableEntity, data, "pages/calculator.tmpl")
-			if err != nil {
-				app.serverError(w, r, err)
-			}
-			return
-		}
-
-		// Get fiscal year configuration
-		fiscalYear, found, err := app.db.GetActiveFiscalYear()
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-		if !found {
-			app.serverError(w, r, err)
-			return
-		}
-
-		// Calculate salary
-		result, err := app.calculateSalary(form.GrossMonthlySalary, form.YearsOfService, fiscalYear)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-
-		data := app.newTemplateData(r)
-		data["Form"] = form
-		data["Result"] = result
-		data["FiscalYear"] = fiscalYear
-
-		err = response.Page(w, http.StatusOK, data, "pages/calculator.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+func (app *application) salaryCalculatorPost(w http.ResponseWriter, r *http.Request, form *calculatorForm) {
+	if !app.readCalculatorForm(w, r, form) {
+		return
 	}
+
+	result, fiscalYear, ok := app.calculateSalaryResult(w, r, form)
+	if !ok {
+		return
+	}
+
+	app.renderCalculatorResult(w, r, form, result, fiscalYear)
+}
+
+func (app *application) readCalculatorForm(w http.ResponseWriter, r *http.Request, form *calculatorForm) bool {
+	if err := request.DecodePostForm(r, form); err != nil {
+		app.badRequest(w, r, err)
+		return false
+	}
+
+	validateCalculatorForm(form)
+	if !form.Validator.HasErrors() {
+		return true
+	}
+
+	app.renderFormPage(w, r, http.StatusUnprocessableEntity, "pages/calculator.tmpl", form)
+	return false
+}
+
+func validateCalculatorForm(form *calculatorForm) {
+	form.Validator.CheckField(form.GrossMonthlySalary > 0, "GrossMonthlySalary", "El salario debe ser mayor a 0")
+	form.Validator.CheckField(form.GrossMonthlySalary <= 1000000, "GrossMonthlySalary", "El salario es demasiado alto")
+	form.Validator.CheckField(form.YearsOfService >= 0, "YearsOfService", "Los años de servicio no pueden ser negativos")
+}
+
+func (app *application) calculateSalaryResult(w http.ResponseWriter, r *http.Request, form *calculatorForm) (database.SalaryCalculation, database.FiscalYear, bool) {
+	fiscalYear, ok := app.requireActiveFiscalYear(w, r)
+	if !ok {
+		return database.SalaryCalculation{}, database.FiscalYear{}, false
+	}
+
+	result, err := app.calculateSalary(form.GrossMonthlySalary, form.YearsOfService, fiscalYear)
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.SalaryCalculation{}, database.FiscalYear{}, false
+	}
+
+	return result, fiscalYear, true
+}
+
+func (app *application) renderCalculatorResult(w http.ResponseWriter, r *http.Request, form *calculatorForm, result database.SalaryCalculation, fiscalYear database.FiscalYear) {
+	data := app.newTemplateData(r)
+	data["Form"] = form
+	data["Result"] = result
+	data["FiscalYear"] = fiscalYear
+	app.renderPage(w, r, http.StatusOK, data, "pages/calculator.tmpl")
 }
 
 // privacy displays the privacy policy (Aviso de Privacidad)
 func (app *application) privacy(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	
-	err := response.Page(w, http.StatusOK, data, "pages/privacy.tmpl")
+
+	err := responsePage(w, http.StatusOK, data, "pages/privacy.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -1026,8 +1046,8 @@ func (app *application) privacy(w http.ResponseWriter, r *http.Request) {
 // terms displays the terms and conditions (Términos y Condiciones)
 func (app *application) terms(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	
-	err := response.Page(w, http.StatusOK, data, "pages/terms.tmpl")
+
+	err := responsePage(w, http.StatusOK, data, "pages/terms.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -1037,12 +1057,12 @@ func (app *application) terms(w http.ResponseWriter, r *http.Request) {
 func (app *application) robotsTxt(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	
+
 	robotsContent := `User-agent: *
 Allow: /
 
 Sitemap: https://totalcomp.mx/sitemap.xml`
-	
+
 	w.Write([]byte(robotsContent))
 }
 
@@ -1050,7 +1070,7 @@ Sitemap: https://totalcomp.mx/sitemap.xml`
 func (app *application) sitemapXML(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	
+
 	sitemapContent := `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
@@ -1072,36 +1092,41 @@ func (app *application) sitemapXML(w http.ResponseWriter, r *http.Request) {
     <priority>0.5</priority>
   </url>
 </urlset>`
-	
+
 	w.Write([]byte(sitemapContent))
 }
 
 // accountDeveloper displays the developer dashboard where users can manage their API keys
 func (app *application) accountDeveloper(w http.ResponseWriter, r *http.Request) {
+	user, ok := app.developerAccountUser(w, r)
+	if !ok {
+		return
+	}
+
+	data := app.newTemplateData(r)
+	data["User"] = user
+	app.renderPage(w, r, http.StatusOK, data, "pages/developer.tmpl")
+}
+
+func (app *application) developerAccountUser(w http.ResponseWriter, r *http.Request) (database.User, bool) {
 	authenticatedUser, found := contextGetAuthenticatedUser(r)
 	if !found {
 		app.notFound(w, r)
-		return
+		return database.User{}, false
 	}
-	userID := authenticatedUser.ID
-	
-	user, found, err := app.db.GetUser(userID)
+
+	user, found, err := app.db.GetUser(authenticatedUser.ID)
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return database.User{}, false
 	}
+
 	if !found {
 		app.notFound(w, r)
-		return
+		return database.User{}, false
 	}
-	
-	data := app.newTemplateData(r)
-	data["User"] = user
-	
-	err = response.Page(w, http.StatusOK, data, "pages/developer.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+
+	return user, true
 }
 
 // generateAPIKey generates or regenerates an API key for the authenticated user
@@ -1112,21 +1137,21 @@ func (app *application) generateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := authenticatedUser.ID
-	
+
 	// Generate a secure random API key (32 characters)
 	apiKey, err := app.generateSecureAPIKey()
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
-	
+
 	// Store the API key in the database (plain text for now, could hash later)
 	err = app.db.UpdateUserAPIKey(userID, apiKey)
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
-	
+
 	// Redirect back to developer dashboard
 	http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
 }
@@ -1134,8 +1159,8 @@ func (app *application) generateAPIKey(w http.ResponseWriter, r *http.Request) {
 // developersPage renders the public marketing page for the API
 func (app *application) developersPage(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	
-	err := response.Page(w, http.StatusOK, data, "pages/developers.tmpl")
+
+	err := responsePage(w, http.StatusOK, data, "pages/developers.tmpl")
 	if err != nil {
 		app.serverError(w, r, err)
 	}
@@ -1143,185 +1168,200 @@ func (app *application) developersPage(w http.ResponseWriter, r *http.Request) {
 
 // verifyEmail handles the email verification flow
 func (app *application) verifyEmail(w http.ResponseWriter, r *http.Request) {
-	// Get verification token from URL
-	plaintextToken := r.PathValue("plaintextToken")
+	userID, ok := app.verifiedEmailUserID(w, r)
+	if !ok {
+		return
+	}
 
-	// Hash the token to compare with database
-	hashedToken := token.Hash(plaintextToken)
+	if err := app.db.VerifyUserEmail(userID); err != nil {
+		app.serverError(w, r, err)
+		return
+	}
 
-	// Get user ID from token (validates expiry - 24 hours)
+	app.renderEmailVerificationSuccess(w, r)
+}
+
+func (app *application) verifiedEmailUserID(w http.ResponseWriter, r *http.Request) (int, bool) {
+	hashedToken := token.Hash(r.PathValue("plaintextToken"))
 	userID, found, err := app.db.GetUserIDFromVerificationToken(hashedToken)
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return 0, false
 	}
 
 	if !found {
-		data := app.newTemplateData(r)
-		data["Message"] = "El enlace de verificación es inválido o ha expirado."
-		err := response.Page(w, http.StatusBadRequest, data, "pages/email-verification-error.tmpl")
-		if err != nil {
-			app.serverError(w, r, err)
-		}
-		return
+		app.renderEmailVerificationError(w, r)
+		return 0, false
 	}
 
-	// Mark email as verified
-	err = app.db.VerifyUserEmail(userID)
-	if err != nil {
-		app.serverError(w, r, err)
-		return
-	}
+	return userID, true
+}
 
-	// Show success page
+func (app *application) renderEmailVerificationError(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	err = response.Page(w, http.StatusOK, data, "pages/email-verification-success.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	data["Message"] = "El enlace de verificación es inválido o ha expirado."
+	app.renderPage(w, r, http.StatusBadRequest, data, "pages/email-verification-error.tmpl")
+}
+
+func (app *application) renderEmailVerificationSuccess(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	app.renderPage(w, r, http.StatusOK, data, "pages/email-verification-success.tmpl")
 }
 
 // resendVerificationEmail generates a new verification token and sends it to the user's email
 func (app *application) resendVerificationEmail(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated user ID from session
 	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-	
-	// Get user email from database
+	user, ok := app.verificationEmailUser(w, r, userID)
+	if !ok {
+		return
+	}
+
+	plaintextToken, ok := app.refreshVerificationToken(w, r, userID)
+	if !ok {
+		return
+	}
+
+	app.sendWelcomeVerificationEmail(r, user.Email, plaintextToken)
+	app.flashAndRedirect(w, r, "Email de verificación reenviado. Revisa tu bandeja de entrada.", "/account/developer")
+}
+
+func (app *application) verificationEmailUser(w http.ResponseWriter, r *http.Request, userID int) (database.User, bool) {
 	user, found, err := app.db.GetUser(userID)
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return database.User{}, false
 	}
-	
+
 	if !found {
-		app.sessionManager.Put(r.Context(), "flash", "Usuario no encontrado")
-		http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
-		return
+		app.flashAndRedirect(w, r, "Usuario no encontrado", "/account/developer")
+		return database.User{}, false
 	}
-	
-	// Check if already verified
+
 	if user.EmailVerified {
-		app.sessionManager.Put(r.Context(), "flash", "Tu email ya está verificado")
-		http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
-		return
+		app.flashAndRedirect(w, r, "Tu email ya está verificado", "/account/developer")
+		return database.User{}, false
 	}
-	
-	// Generate new verification token
+
+	return user, true
+}
+
+func (app *application) refreshVerificationToken(w http.ResponseWriter, r *http.Request, userID int) (string, bool) {
 	plaintextToken := token.New()
-	hashedToken := token.Hash(plaintextToken)
-	
-	// Delete any existing verification tokens for this user
-	err = app.db.DeleteEmailVerificationTokensForUser(userID)
-	if err != nil {
+	if err := app.replaceVerificationToken(userID, plaintextToken); err != nil {
 		app.serverError(w, r, err)
-		return
+		return "", false
 	}
-	
-	// Store new verification token in database
-	err = app.db.InsertEmailVerificationToken(userID, hashedToken)
-	if err != nil {
-		app.serverError(w, r, err)
-		return
+
+	return plaintextToken, true
+}
+
+func (app *application) replaceVerificationToken(userID int, plaintextToken string) error {
+	if err := app.db.DeleteEmailVerificationTokensForUser(userID); err != nil {
+		return err
 	}
-	
-	// Send verification email in background
-	app.backgroundTask(r, func() error {
-		data := app.newEmailData()
-		data["Email"] = user.Email
-		data["VerificationToken"] = plaintextToken
-		return app.mailer.Send(user.Email, data, "welcome.tmpl")
-	})
-	
-	app.sessionManager.Put(r.Context(), "flash", "Email de verificación reenviado. Revisa tu bandeja de entrada.")
-	http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
+
+	return app.db.InsertEmailVerificationToken(userID, token.Hash(plaintextToken))
+}
+
+func (app *application) flashAndRedirect(w http.ResponseWriter, r *http.Request, message string, path string) {
+	app.sessionManager.Put(r.Context(), "flash", message)
+	http.Redirect(w, r, path, http.StatusSeeOther)
+}
+
+type apiCalculateRequest struct {
+	Salary                 float64 `json:"salary"`
+	Regime                 string  `json:"regime"`
+	HasAguinaldo           bool    `json:"has_aguinaldo"`
+	AguinaldoDays          int     `json:"aguinaldo_days"`
+	HasValesDespensa       bool    `json:"has_vales_despensa"`
+	ValesDespensaAmount    float64 `json:"vales_despensa_amount"`
+	HasPrimaVacacional     bool    `json:"has_prima_vacacional"`
+	VacationDays           int     `json:"vacation_days"`
+	PrimaVacacionalPercent float64 `json:"prima_vacacional_percent"`
+	HasFondoAhorro         bool    `json:"has_fondo_ahorro"`
+	FondoAhorroPercent     float64 `json:"fondo_ahorro_percent"`
+	UnpaidVacationDays     int     `json:"unpaid_vacation_days"`
 }
 
 // apiCalculate is the main API endpoint for salary calculations (JSON API)
 func (app *application) apiCalculate(w http.ResponseWriter, r *http.Request) {
-	// Parse JSON request body
-	var req struct {
-		Salary                  float64 `json:"salary"`
-		Regime                  string  `json:"regime"` // "sueldos" or "resico"
-		HasAguinaldo            bool    `json:"has_aguinaldo"`
-		AguinaldoDays           int     `json:"aguinaldo_days"`
-		HasValesDespensa        bool    `json:"has_vales_despensa"`
-		ValesDespensaAmount     float64 `json:"vales_despensa_amount"`
-		HasPrimaVacacional      bool    `json:"has_prima_vacacional"`
-		VacationDays            int     `json:"vacation_days"`
-		PrimaVacacionalPercent  float64 `json:"prima_vacacional_percent"`
-		HasFondoAhorro          bool    `json:"has_fondo_ahorro"`
-		FondoAhorroPercent      float64 `json:"fondo_ahorro_percent"`
-		UnpaidVacationDays      int     `json:"unpaid_vacation_days"` // RESICO only
-	}
-	
-	err := request.DecodeJSON(w, r, &req)
-	if err != nil {
-		err := response.JSON(w, http.StatusBadRequest, map[string]string{
-			"error": "Invalid JSON request body",
-		})
-		if err != nil {
-			app.serverError(w, r, err)
-		}
+	req, ok := app.readAPICalculateRequest(w, r)
+	if !ok {
 		return
 	}
-	
-	// Validate input
+
+	fiscalYear, ok := app.activeFiscalYearJSON(w, r)
+	if !ok {
+		return
+	}
+
+	result, ok := app.apiSalaryCalculation(w, r, req, fiscalYear)
+	if !ok {
+		return
+	}
+
+	app.writeAPICalculateResponse(w, r, req, result, fiscalYear)
+}
+
+func (app *application) readAPICalculateRequest(w http.ResponseWriter, r *http.Request) (apiCalculateRequest, bool) {
+	var req apiCalculateRequest
+	if err := request.DecodeJSON(w, r, &req); err != nil {
+		app.writeJSONError(w, r, http.StatusBadRequest, "Invalid JSON request body")
+		return apiCalculateRequest{}, false
+	}
+
 	if req.Salary <= 0 {
-		err := response.JSON(w, http.StatusBadRequest, map[string]string{
-			"error": "Salary must be greater than 0",
-		})
-		if err != nil {
-			app.serverError(w, r, err)
-		}
-		return
+		app.writeJSONError(w, r, http.StatusBadRequest, "Salary must be greater than 0")
+		return apiCalculateRequest{}, false
 	}
-	
-	// Get fiscal year configuration
+
+	return req, true
+}
+
+func (app *application) activeFiscalYearJSON(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
 	fiscalYear, found, err := app.db.GetActiveFiscalYear()
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return database.FiscalYear{}, false
 	}
+
 	if !found {
-		err := response.JSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "No active fiscal year configuration found",
-		})
-		if err != nil {
-			app.serverError(w, r, err)
-		}
-		return
+		app.writeJSONError(w, r, http.StatusInternalServerError, "No active fiscal year configuration found")
+		return database.FiscalYear{}, false
 	}
-	
-	// Calculate based on regime
-	var result database.SalaryCalculation
-	
+
+	return fiscalYear, true
+}
+
+func (app *application) apiSalaryCalculation(w http.ResponseWriter, r *http.Request, req apiCalculateRequest, fiscalYear database.FiscalYear) (database.SalaryCalculation, bool) {
+	result, err := app.runAPISalaryCalculation(req, fiscalYear)
+	if err != nil {
+		app.serverError(w, r, err)
+		return database.SalaryCalculation{}, false
+	}
+
+	return result, true
+}
+
+func (app *application) runAPISalaryCalculation(req apiCalculateRequest, fiscalYear database.FiscalYear) (database.SalaryCalculation, error) {
 	if req.Regime == "resico" {
-		// RESICO calculation
-		result, err = app.calculateRESICO(req.Salary, req.UnpaidVacationDays, []OtherBenefit{}, 1.0, fiscalYear)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-	} else {
-		// Sueldos y Salarios calculation (default)
-		result, err = app.calculateSalaryWithBenefits(
-			req.Salary,
-			req.HasAguinaldo, req.AguinaldoDays,
-			req.HasValesDespensa, req.ValesDespensaAmount,
-			req.HasPrimaVacacional, req.VacationDays, req.PrimaVacacionalPercent,
-			req.HasFondoAhorro, req.FondoAhorroPercent,
-			false, // hasInfonavitCredit - API users can add this later
-			[]OtherBenefit{},
-			1.0, // Exchange rate (MXN)
-			fiscalYear,
-		)
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
+		return app.calculateRESICO(req.Salary, req.UnpaidVacationDays, []OtherBenefit{}, 1.0, fiscalYear)
 	}
-	
-	// Return JSON response
+
+	return app.calculateSalaryWithBenefits(
+		req.Salary,
+		req.HasAguinaldo, req.AguinaldoDays,
+		req.HasValesDespensa, req.ValesDespensaAmount,
+		req.HasPrimaVacacional, req.VacationDays, req.PrimaVacacionalPercent,
+		req.HasFondoAhorro, req.FondoAhorroPercent,
+		false,
+		[]OtherBenefit{},
+		1.0,
+		fiscalYear,
+	)
+}
+
+func (app *application) writeAPICalculateResponse(w http.ResponseWriter, r *http.Request, req apiCalculateRequest, result database.SalaryCalculation, fiscalYear database.FiscalYear) {
 	jsonResponse := map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
@@ -1337,13 +1377,13 @@ func (app *application) apiCalculate(w http.ResponseWriter, r *http.Request) {
 			"yearly_net":        result.YearlyNet,
 			"monthly_adjusted":  result.MonthlyAdjusted,
 			"breakdown": map[string]interface{}{
-				"aguinaldo_gross": result.AguinaldoGross,
-				"aguinaldo_isr":   result.AguinaldoISR,
-				"aguinaldo_net":   result.AguinaldoNet,
-				"prima_vacacional_gross": result.PrimaVacacionalGross,
-				"prima_vacacional_isr":   result.PrimaVacacionalISR,
-				"prima_vacacional_net":   result.PrimaVacacionalNet,
-				"fondo_ahorro_yearly":    result.FondoAhorroYearly,
+				"aguinaldo_gross":           result.AguinaldoGross,
+				"aguinaldo_isr":             result.AguinaldoISR,
+				"aguinaldo_net":             result.AguinaldoNet,
+				"prima_vacacional_gross":    result.PrimaVacacionalGross,
+				"prima_vacacional_isr":      result.PrimaVacacionalISR,
+				"prima_vacacional_net":      result.PrimaVacacionalNet,
+				"fondo_ahorro_yearly":       result.FondoAhorroYearly,
 				"infonavit_employer_annual": result.InfonavitEmployerAnnual,
 				"imss_employer_annual":      result.IMSSEmployerAnnual,
 			},
@@ -1353,144 +1393,203 @@ func (app *application) apiCalculate(w http.ResponseWriter, r *http.Request) {
 			"uma_monthly": fiscalYear.UMAMonthly,
 		},
 	}
-	
-	err = response.JSON(w, http.StatusOK, jsonResponse)
-	if err != nil {
+
+	if err := responseJSON(w, http.StatusOK, jsonResponse); err != nil {
+		app.serverError(w, r, err)
+	}
+}
+
+func (app *application) writeJSONError(w http.ResponseWriter, r *http.Request, status int, message string) {
+	if err := responseJSON(w, status, map[string]string{"error": message}); err != nil {
 		app.serverError(w, r, err)
 	}
 }
 
 // exportPDF generates and downloads a comparison PDF report for all packages
 func (app *application) exportPDF(w http.ResponseWriter, r *http.Request) {
-	// Get results from session
-	if !app.sessionManager.Exists(r.Context(), "comparisonResults") {
-		app.badRequest(w, r, fmt.Errorf("no results in session"))
+	exportData, ok := app.pdfExportData(w, r)
+	if !ok {
 		return
 	}
-	
+
+	pdfBytes, ok := app.generateExportPDF(w, r, exportData)
+	if !ok {
+		return
+	}
+
+	app.writePDFResponse(w, pdfBytes)
+}
+
+type pdfExportData struct {
+	results     []PackageResult
+	inputs      []PackageInput
+	fiscalYear  database.FiscalYear
+	pdfPackages []pdf.PackageResult
+}
+
+func (app *application) pdfExportData(w http.ResponseWriter, r *http.Request) (pdfExportData, bool) {
+	results, ok := app.pdfComparisonResults(w, r)
+	if !ok {
+		return pdfExportData{}, false
+	}
+
+	packageInputs, ok := app.pdfPackageInputs(w, r)
+	if !ok {
+		return pdfExportData{}, false
+	}
+
+	fiscalYear, ok := app.pdfFiscalYear(w, r)
+	if !ok {
+		return pdfExportData{}, false
+	}
+
+	return pdfExportData{
+		results:     results,
+		inputs:      packageInputs,
+		fiscalYear:  fiscalYear,
+		pdfPackages: buildPDFPackages(results, packageInputs),
+	}, true
+}
+
+func (app *application) pdfComparisonResults(w http.ResponseWriter, r *http.Request) ([]PackageResult, bool) {
+	if !app.sessionManager.Exists(r.Context(), "comparisonResults") {
+		app.badRequest(w, r, fmt.Errorf("no results in session"))
+		return nil, false
+	}
+
 	results, ok := app.sessionManager.Get(r.Context(), "comparisonResults").([]PackageResult)
 	if !ok {
 		app.serverError(w, r, fmt.Errorf("invalid results in session"))
-		return
+		return nil, false
 	}
-	
+
 	if len(results) == 0 {
 		app.badRequest(w, r, fmt.Errorf("no packages to compare"))
-		return
+		return nil, false
 	}
-	
-	// Get package inputs from session
+
+	return results, true
+}
+
+func (app *application) pdfPackageInputs(w http.ResponseWriter, r *http.Request) ([]PackageInput, bool) {
 	packageInputs, ok := app.sessionManager.Get(r.Context(), "packageInputs").([]PackageInput)
 	if !ok {
 		app.serverError(w, r, fmt.Errorf("invalid package inputs in session"))
-		return
+		return nil, false
 	}
-	
-	// Get fiscal year from session
+
+	return packageInputs, true
+}
+
+func (app *application) pdfFiscalYear(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
 	fiscalYear, ok := app.sessionManager.Get(r.Context(), "fiscalYear").(database.FiscalYear)
-	if !ok {
-		// Try to get from database if not in session
-		fy, found, err := app.db.GetActiveFiscalYear()
-		if err != nil {
-			app.serverError(w, r, err)
-			return
-		}
-		if !found {
-			app.serverError(w, r, fmt.Errorf("no active fiscal year"))
-			return
-		}
-		fiscalYear = fy
+	if ok {
+		return fiscalYear, true
 	}
-	
-	// Convert results to pdf.PackageResult format (merge inputs + calculations)
-	pdfPackages := make([]pdf.PackageResult, len(results))
-	for i, result := range results {
-		// Convert OtherBenefit to pdf.OtherBenefit
-		var pdfOtherBenefits []pdf.OtherBenefit
-		if i < len(packageInputs) {
-			for _, ob := range packageInputs[i].OtherBenefits {
-				pdfOtherBenefits = append(pdfOtherBenefits, pdf.OtherBenefit{
-					Name:     ob.Name,
-					Amount:   ob.Amount,
-					TaxFree:  ob.TaxFree,
-					Currency: ob.Currency,
-					Cadence:  ob.Cadence,
-				})
-			}
-		}
-		
-		pdfInput := pdf.PackageInput{}
-		if i < len(packageInputs) {
-			pdfInput = pdf.PackageInput{
-				Name:                    packageInputs[i].Name,
-				Regime:                  packageInputs[i].Regime,
-				Currency:                packageInputs[i].Currency,
-				ExchangeRate:            packageInputs[i].ExchangeRate,
-				PaymentFrequency:        packageInputs[i].PaymentFrequency,
-				HoursPerWeek:            packageInputs[i].HoursPerWeek,
-				GrossMonthlySalary:      packageInputs[i].GrossMonthlySalary,
-				HasAguinaldo:            packageInputs[i].HasAguinaldo,
-				AguinaldoDays:           packageInputs[i].AguinaldoDays,
-				HasValesDespensa:        packageInputs[i].HasValesDespensa,
-				ValesDespensaAmount:     packageInputs[i].ValesDespensaAmount,
-				HasPrimaVacacional:      packageInputs[i].HasPrimaVacacional,
-				VacationDays:            packageInputs[i].VacationDays,
-				PrimaVacacionalPercent:  packageInputs[i].PrimaVacacionalPercent,
-				HasFondoAhorro:          packageInputs[i].HasFondoAhorro,
-				FondoAhorroPercent:      packageInputs[i].FondoAhorroPercent,
-				UnpaidVacationDays:      packageInputs[i].UnpaidVacationDays,
-				OtherBenefits:           pdfOtherBenefits,
-				HasEquity:               packageInputs[i].HasEquity,
-				InitialEquityUSD:        packageInputs[i].InitialEquityUSD,
-				HasRefreshers:           packageInputs[i].HasRefreshers,
-				RefresherMinUSD:         packageInputs[i].RefresherMinUSD,
-				RefresherMaxUSD:         packageInputs[i].RefresherMaxUSD,
-			}
-		}
-		
-		pdfPackages[i] = pdf.PackageResult{
-			Name:        result.PackageName,
-			Input:       pdfInput,
-			Calculation: result.SalaryCalculation,
-		}
-	}
-	
-	// Generate comparison PDF
-	pdfBytes, err := pdf.GenerateComparisonReport(pdfPackages, fiscalYear)
+
+	return app.activeFiscalYearForPDF(w, r)
+}
+
+func (app *application) activeFiscalYearForPDF(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
+	fiscalYear, found, err := app.db.GetActiveFiscalYear()
 	if err != nil {
 		app.serverError(w, r, err)
-		return
+		return database.FiscalYear{}, false
 	}
-	
-	// Set headers for PDF download
+
+	if !found {
+		app.serverError(w, r, fmt.Errorf("no active fiscal year"))
+		return database.FiscalYear{}, false
+	}
+
+	return fiscalYear, true
+}
+
+func buildPDFPackages(results []PackageResult, packageInputs []PackageInput) []pdf.PackageResult {
+	pdfPackages := make([]pdf.PackageResult, len(results))
+	for i, result := range results {
+		pdfPackages[i] = buildPDFPackage(result, packageInputs, i)
+	}
+
+	return pdfPackages
+}
+
+func buildPDFPackage(result PackageResult, packageInputs []PackageInput, index int) pdf.PackageResult {
+	return pdf.PackageResult{
+		Name:        result.PackageName,
+		Input:       pdfPackageInput(packageInputs, index),
+		Calculation: result.SalaryCalculation,
+	}
+}
+
+func pdfPackageInput(packageInputs []PackageInput, index int) pdf.PackageInput {
+	if index >= len(packageInputs) {
+		return pdf.PackageInput{}
+	}
+
+	return convertPDFPackageInput(packageInputs[index])
+}
+
+func convertPDFPackageInput(input PackageInput) pdf.PackageInput {
+	return pdf.PackageInput{
+		Name:                   input.Name,
+		Regime:                 input.Regime,
+		Currency:               input.Currency,
+		ExchangeRate:           input.ExchangeRate,
+		PaymentFrequency:       input.PaymentFrequency,
+		HoursPerWeek:           input.HoursPerWeek,
+		GrossMonthlySalary:     input.GrossMonthlySalary,
+		HasAguinaldo:           input.HasAguinaldo,
+		AguinaldoDays:          input.AguinaldoDays,
+		HasValesDespensa:       input.HasValesDespensa,
+		ValesDespensaAmount:    input.ValesDespensaAmount,
+		HasPrimaVacacional:     input.HasPrimaVacacional,
+		VacationDays:           input.VacationDays,
+		PrimaVacacionalPercent: input.PrimaVacacionalPercent,
+		HasFondoAhorro:         input.HasFondoAhorro,
+		FondoAhorroPercent:     input.FondoAhorroPercent,
+		UnpaidVacationDays:     input.UnpaidVacationDays,
+		OtherBenefits:          convertPDFOtherBenefits(input.OtherBenefits),
+		HasEquity:              input.HasEquity,
+		InitialEquityUSD:       input.InitialEquityUSD,
+		HasRefreshers:          input.HasRefreshers,
+		RefresherMinUSD:        input.RefresherMinUSD,
+		RefresherMaxUSD:        input.RefresherMaxUSD,
+	}
+}
+
+func convertPDFOtherBenefits(otherBenefits []OtherBenefit) []pdf.OtherBenefit {
+	pdfOtherBenefits := make([]pdf.OtherBenefit, 0, len(otherBenefits))
+	for _, ob := range otherBenefits {
+		pdfOtherBenefits = append(pdfOtherBenefits, pdf.OtherBenefit{
+			Name:     ob.Name,
+			Amount:   ob.Amount,
+			TaxFree:  ob.TaxFree,
+			Currency: ob.Currency,
+			Cadence:  ob.Cadence,
+		})
+	}
+
+	return pdfOtherBenefits
+}
+
+func (app *application) generateExportPDF(w http.ResponseWriter, r *http.Request, exportData pdfExportData) ([]byte, bool) {
+	pdfBytes, err := generateComparisonReport(exportData.pdfPackages, exportData.fiscalYear)
+	if err != nil {
+		app.serverError(w, r, err)
+		return nil, false
+	}
+
+	return pdfBytes, true
+}
+
+func (app *application) writePDFResponse(w http.ResponseWriter, pdfBytes []byte) {
 	w.Header().Set("Content-Type", "application/pdf")
 	filename := "TotalComp_Comparacion_2025.pdf"
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdfBytes)))
-	
-	// Write PDF bytes to response
-	_, err = w.Write(pdfBytes)
-	if err != nil {
+
+	if _, err := w.Write(pdfBytes); err != nil {
 		app.logger.Error("failed to write PDF response", "error", err)
 	}
-}
-
-// sanitizeFilename removes special characters from filename
-func sanitizeFilename(name string) string {
-	if name == "" {
-		return "Paquete"
-	}
-	// Simple sanitization - replace spaces and special chars
-	result := ""
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			result += string(r)
-		} else if r == ' ' {
-			result += "_"
-		}
-	}
-	if result == "" {
-		return "Paquete"
-	}
-	return result
 }

@@ -1,3 +1,5 @@
+//go:build integration
+
 package database
 
 import (
@@ -13,7 +15,7 @@ func TestNew(t *testing.T) {
 		dsn := os.Getenv("TEST_DB_DSN")
 
 		if dsn == "" {
-			t.Fatal("TEST_DB_DSN environment variable must be set in the format user:pass@localhost:port/db")
+			t.Skip("TEST_DB_DSN environment variable must be set to run integration tests")
 		}
 
 		db, err := New(dsn)

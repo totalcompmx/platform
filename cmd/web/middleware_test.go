@@ -11,6 +11,18 @@ import (
 	"github.com/jcroyoaun/totalcompmx/internal/database"
 )
 
+func teapotHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+}
+
+func okHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
 func TestSecurityHeaders(t *testing.T) {
 	t.Run("Sets appropriate security headers", func(t *testing.T) {
 		app := newTestApplication(t)
@@ -86,81 +98,68 @@ func TestLogAccess(t *testing.T) {
 }
 
 func TestPreventCSRF(t *testing.T) {
-	t.Run("POST accepts a valid CSRF token", func(t *testing.T) {
-		app := newTestApplication(t)
+	t.Run("POST accepts a valid CSRF token", testPreventCSRFValidToken)
+	t.Run("POST rejects invalid CSRF tokens or cookies and displays error page", testPreventCSRFInvalidTokens)
+}
 
-		validCSRFToken, validCSRFCookie := getValidCSRFData(t)
+func testPreventCSRFValidToken(t *testing.T) {
+	app := newTestApplication(t)
+	validCSRFToken, validCSRFCookie := getValidCSRFData(t)
 
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusTeapot)
+	next := teapotHandler()
+	req := newTestRequest(t, http.MethodPost, "/test")
+	req.AddCookie(validCSRFCookie)
+	req.PostForm.Add("csrf_token", validCSRFToken)
+
+	res := send(t, req, app.preventCSRF(next))
+	assert.Equal(t, res.StatusCode, http.StatusTeapot)
+}
+
+func testPreventCSRFInvalidTokens(t *testing.T) {
+	for _, tt := range invalidCSRFCases(t) {
+		t.Run(tt.name, func(t *testing.T) {
+			assertInvalidCSRFRequest(t, tt)
 		})
+	}
+}
 
-		req := newTestRequest(t, http.MethodPost, "/test")
-		req.AddCookie(validCSRFCookie)
-		req.PostForm.Add("csrf_token", validCSRFToken)
+type csrfCase struct {
+	name       string
+	csrfToken  string
+	csrfCookie *http.Cookie
+}
 
-		res := send(t, req, app.preventCSRF(next))
-		assert.Equal(t, res.StatusCode, http.StatusTeapot)
-	})
+func invalidCSRFCases(t *testing.T) []csrfCase {
+	t.Helper()
+	validCSRFToken, validCSRFCookie := getValidCSRFData(t)
+	return []csrfCase{
+		{name: "Invalid token", csrfToken: "Inval1dT0k3N", csrfCookie: validCSRFCookie},
+		{name: "Missing token", csrfToken: "", csrfCookie: validCSRFCookie},
+		{name: "Invalid cookie", csrfToken: validCSRFToken, csrfCookie: &http.Cookie{}},
+		{name: "Missing cookie", csrfToken: validCSRFToken, csrfCookie: nil},
+		{name: "Missing token and cookie", csrfToken: "", csrfCookie: nil},
+	}
+}
 
-	t.Run("POST rejects invalid CSRF tokens or cookies and displays error page", func(t *testing.T) {
-		validCSRFToken, validCSRFCookie := getValidCSRFData(t)
+func assertInvalidCSRFRequest(t *testing.T, tt csrfCase) {
+	app := newTestApplication(t)
+	req := invalidCSRFRequest(t, tt)
+	res := send(t, req, app.sessionManager.LoadAndSave(app.preventCSRF(okHandler())))
 
-		tests := []struct {
-			name       string
-			csrfToken  string
-			csrfCookie *http.Cookie
-		}{
-			{
-				name:       "Invalid token",
-				csrfToken:  "Inval1dT0k3N",
-				csrfCookie: validCSRFCookie,
-			},
-			{
-				name:       "Missing token",
-				csrfToken:  "",
-				csrfCookie: validCSRFCookie,
-			},
-			{
-				name:       "Invalid cookie",
-				csrfToken:  validCSRFToken,
-				csrfCookie: &http.Cookie{},
-			},
-			{
-				name:       "Missing cookie",
-				csrfToken:  validCSRFToken,
-				csrfCookie: nil,
-			},
-			{
-				name:       "Missing token and cookie",
-				csrfToken:  "",
-				csrfCookie: nil,
-			},
-		}
+	assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+	assert.True(t, containsPageTag(t, res.Body, "errors/400"))
+	assert.True(t, strings.Contains(res.Body, "CSRF token validation failed"))
+}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				app := newTestApplication(t)
-
-				next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				})
-
-				req := newTestRequest(t, http.MethodPost, "/test")
-				if tt.csrfToken != "" {
-					req.PostForm.Add("c", tt.csrfToken)
-				}
-				if tt.csrfCookie != nil {
-					req.AddCookie(tt.csrfCookie)
-				}
-
-				res := send(t, req, app.sessionManager.LoadAndSave(app.preventCSRF(next)))
-				assert.Equal(t, res.StatusCode, http.StatusBadRequest)
-				assert.True(t, containsPageTag(t, res.Body, "errors/400"))
-				assert.True(t, strings.Contains(res.Body, "CSRF token validation failed"))
-			})
-		}
-	})
+func invalidCSRFRequest(t *testing.T, tt csrfCase) *http.Request {
+	req := newTestRequest(t, http.MethodPost, "/test")
+	if tt.csrfToken != "" {
+		req.PostForm.Add("c", tt.csrfToken)
+	}
+	if tt.csrfCookie != nil {
+		req.AddCookie(tt.csrfCookie)
+	}
+	return req
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -299,76 +298,81 @@ func TestRequireAnonymousUser(t *testing.T) {
 }
 
 func TestRequireBasicAuthentication(t *testing.T) {
-	t.Run("Allows user with valid basic auth credentials to proceed", func(t *testing.T) {
-		app := newTestApplication(t)
-		authUsername := "admin"
-		authPassword := "placeholder*77"
-		validHashedPassword := "$2a$04$HLvpR86.wXVT.2KHHkUbFe4/ou3wYGnc9FD7VcKaixofed5enOS.W"
+	t.Run("Allows user with valid basic auth credentials to proceed", testRequireBasicAuthenticationAllowsValidUser)
+	t.Run("Renders the 401 error page and WWW-Authenticate header for invalid authentication", testRequireBasicAuthenticationRejectsInvalidUsers)
+}
 
-		app.config.basicAuth.username = authUsername
-		app.config.basicAuth.hashedPassword = validHashedPassword
+func testRequireBasicAuthenticationAllowsValidUser(t *testing.T) {
+	app := newBasicAuthTestApplication(t)
+	req := newTestRequest(t, http.MethodGet, "/test")
+	req.SetBasicAuth("admin", "placeholder*77")
 
-		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusTeapot)
+	res := send(t, req, app.requireBasicAuthentication(teapotHandler()))
+	assert.Equal(t, res.StatusCode, http.StatusTeapot)
+}
+
+func testRequireBasicAuthenticationRejectsInvalidUsers(t *testing.T) {
+	for _, tt := range invalidBasicAuthCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			assertInvalidBasicAuthentication(t, tt)
 		})
+	}
+}
 
-		req := newTestRequest(t, http.MethodGet, "/test")
-		req.SetBasicAuth(authUsername, authPassword)
+type basicAuthCase struct {
+	name         string
+	setAuth      bool
+	authUsername string
+	authPassword string
+}
 
-		res := send(t, req, app.requireBasicAuthentication(next))
-		assert.Equal(t, res.StatusCode, http.StatusTeapot)
-	})
+func invalidBasicAuthCases() []basicAuthCase {
+	return []basicAuthCase{
+		{name: "No basic auth credentials provided", setAuth: false},
+		{name: "Invalid username provided", setAuth: true, authUsername: "wronguser", authPassword: "placeholder*77"},
+		{name: "Invalid password provided", setAuth: true, authUsername: "admin", authPassword: "wrongpassword"},
+	}
+}
 
-	t.Run("Renders the 401 error page and WWW-Authenticate header for invalid authentication", func(t *testing.T) {
-		validUsername := "admin"
-		validPassword := "placeholder*77"
-		validHashedPassword := "$2a$04$HLvpR86.wXVT.2KHHkUbFe4/ou3wYGnc9FD7VcKaixofed5enOS.W"
+func assertInvalidBasicAuthentication(t *testing.T, tt basicAuthCase) {
+	app := newBasicAuthTestApplication(t)
+	req := newBasicAuthRequest(t, tt)
 
-		tests := []struct {
-			name         string
-			setAuth      bool
-			authUsername string
-			authPassword string
-		}{
-			{
-				name:    "No basic auth credentials provided",
-				setAuth: false,
-			},
-			{
-				name:         "Invalid username provided",
-				setAuth:      true,
-				authUsername: "wronguser",
-				authPassword: validPassword,
-			},
-			{
-				name:         "Invalid password provided",
-				setAuth:      true,
-				authUsername: validUsername,
-				authPassword: "wrongpassword",
-			},
-		}
+	res := send(t, req, app.requireBasicAuthentication(teapotHandler()))
+	assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
+	assert.Equal(t, res.Header.Get("WWW-Authenticate"), `Basic realm="restricted", charset="UTF-8"`)
+	assert.True(t, containsPageTag(t, res.Body, "errors/401"))
+}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				app := newTestApplication(t)
+func newBasicAuthTestApplication(t *testing.T) *application {
+	app := newTestApplication(t)
+	app.config.basicAuth.username = "admin"
+	app.config.basicAuth.hashedPassword = "$2a$04$HLvpR86.wXVT.2KHHkUbFe4/ou3wYGnc9FD7VcKaixofed5enOS.W"
+	return app
+}
 
-				app.config.basicAuth.username = validUsername
-				app.config.basicAuth.hashedPassword = validHashedPassword
+func newBasicAuthRequest(t *testing.T, tt basicAuthCase) *http.Request {
+	req := newTestRequest(t, http.MethodGet, "/test")
+	if tt.setAuth {
+		req.SetBasicAuth(tt.authUsername, tt.authPassword)
+	}
+	return req
+}
 
-				next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusTeapot)
-				})
+func TestRecordAPIUsage(t *testing.T) {
+	app := newTestApplication(t)
+	userID := testUsers["alice"].id
+	req := newTestRequest(t, http.MethodGet, "/api/calculate")
 
-				req := newTestRequest(t, http.MethodGet, "/test")
-				if tt.setAuth {
-					req.SetBasicAuth(tt.authUsername, tt.authPassword)
-				}
+	app.recordAPIUsage(req, userID)
+	app.wg.Wait()
 
-				res := send(t, req, app.requireBasicAuthentication(next))
-				assert.Equal(t, res.StatusCode, http.StatusUnauthorized)
-				assert.Equal(t, res.Header.Get("WWW-Authenticate"), `Basic realm="restricted", charset="UTF-8"`)
-				assert.True(t, containsPageTag(t, res.Body, "errors/401"))
-			})
-		}
-	})
+	dailyCount, err := app.db.GetDailyAPICallCount(userID)
+	assert.Nil(t, err)
+	assert.Equal(t, dailyCount, 1)
+
+	user, found, err := app.db.GetUser(userID)
+	assert.Nil(t, err)
+	assert.True(t, found)
+	assert.Equal(t, user.ApiCallsCount, 1)
 }

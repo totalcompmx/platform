@@ -7,7 +7,17 @@ import (
 	"testing"
 )
 
+type testingT interface {
+	Helper()
+	Errorf(string, ...any)
+	Fatalf(string, ...any)
+}
+
 func Equal[T any](t *testing.T, got, want T) {
+	equal(t, got, want)
+}
+
+func equal[T any](t testingT, got, want T) {
 	t.Helper()
 	if !isEqual(got, want) {
 		t.Errorf("got: %v; want: %v", got, want)
@@ -15,6 +25,10 @@ func Equal[T any](t *testing.T, got, want T) {
 }
 
 func NotEqual[T any](t *testing.T, got, want T) {
+	notEqual(t, got, want)
+}
+
+func notEqual[T any](t testingT, got, want T) {
 	t.Helper()
 	if isEqual(got, want) {
 		t.Errorf("got: %v; expected values to be different", got)
@@ -22,6 +36,10 @@ func NotEqual[T any](t *testing.T, got, want T) {
 }
 
 func True(t *testing.T, got bool) {
+	trueValue(t, got)
+}
+
+func trueValue(t testingT, got bool) {
 	t.Helper()
 	if !got {
 		t.Errorf("got: false; want: true")
@@ -29,6 +47,10 @@ func True(t *testing.T, got bool) {
 }
 
 func False(t *testing.T, got bool) {
+	falseValue(t, got)
+}
+
+func falseValue(t testingT, got bool) {
 	t.Helper()
 	if got {
 		t.Errorf("got: true; want: false")
@@ -36,6 +58,10 @@ func False(t *testing.T, got bool) {
 }
 
 func Nil(t *testing.T, got any) {
+	nilValue(t, got)
+}
+
+func nilValue(t testingT, got any) {
 	t.Helper()
 	if !isNil(got) {
 		t.Errorf("got: %v; want: nil", got)
@@ -43,6 +69,10 @@ func Nil(t *testing.T, got any) {
 }
 
 func NotNil(t *testing.T, got any) {
+	notNilValue(t, got)
+}
+
+func notNilValue(t testingT, got any) {
 	t.Helper()
 	if isNil(got) {
 		t.Errorf("got: nil; want: non-nil")
@@ -50,6 +80,10 @@ func NotNil(t *testing.T, got any) {
 }
 
 func ErrorIs(t *testing.T, got, want error) {
+	errorIs(t, got, want)
+}
+
+func errorIs(t testingT, got, want error) {
 	t.Helper()
 	if !errors.Is(got, want) {
 		t.Errorf("got: %v; want: %v", got, want)
@@ -57,6 +91,10 @@ func ErrorIs(t *testing.T, got, want error) {
 }
 
 func ErrorAs(t *testing.T, got error, target any) {
+	errorAs(t, got, target)
+}
+
+func errorAs(t testingT, got error, target any) {
 	t.Helper()
 	if got == nil {
 		t.Errorf("got: nil; want assignable to: %T", target)
@@ -68,6 +106,10 @@ func ErrorAs(t *testing.T, got error, target any) {
 }
 
 func MatchesRegexp(t *testing.T, got, pattern string) {
+	matchesRegexp(t, got, pattern)
+}
+
+func matchesRegexp(t testingT, got, pattern string) {
 	t.Helper()
 	matched, err := regexp.MatchString(pattern, got)
 	if err != nil {
