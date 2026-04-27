@@ -10,7 +10,7 @@ import (
 	"github.com/jcroyoaun/totalcompmx/assets"
 )
 
-const viteManifestPath = "static/dist/.vite/manifest.json"
+const viteManifestPath = "static/dist/manifest.json"
 
 var getViteDevServerURL = func() string {
 	return os.Getenv("VITE_DEV_SERVER_URL")

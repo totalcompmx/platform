@@ -42,6 +42,7 @@ interface BenefitNoticeControls {
 }
 
 const benefitCounters: number[] = [0, 0];
+let homeInitialized = false;
 
 export function toggleRegime(select: HTMLSelectElement, index: number): void {
     const controls = regimeControls(index);
@@ -316,7 +317,7 @@ export function setPackageValue(packageDiv: ParentNode, selector: string, value:
     if (!value) return;
 
     const input = packageDiv.querySelector<HTMLInputElement | HTMLSelectElement>(selector);
-    if (input) input.value = value;
+    if (input && !controlHasUserValue(input)) input.value = value;
 }
 
 export function setPackageFormattedValue(packageDiv: ParentNode, selector: string, value: string): void {
@@ -328,7 +329,7 @@ export function setIndexedValue(name: string, index: number, value: string): voi
     if (!value) return;
 
     const input = document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`)[index];
-    if (input) input.value = value;
+    if (input && !controlHasUserValue(input)) input.value = value;
 }
 
 export function setIndexedFormattedValue(name: string, index: number, value: string): void {
@@ -448,9 +449,27 @@ export function loadSavedFondo(idx: number): void {
 
 export function checkFirst(selector: string): void {
     const checkbox = document.querySelector<HTMLInputElement>(selector);
-    if (checkbox) {
+    if (checkbox && checkbox.checked === checkbox.defaultChecked) {
         checkbox.checked = true;
     }
+}
+
+export function controlHasUserValue(input: HTMLInputElement | HTMLSelectElement): boolean {
+    if (input instanceof HTMLInputElement) {
+        if (input.type === 'checkbox' || input.type === 'radio') {
+            return input.checked !== input.defaultChecked;
+        }
+
+        return input.value !== input.defaultValue;
+    }
+
+    return input.value !== defaultSelectValue(input);
+}
+
+export function defaultSelectValue(select: HTMLSelectElement): string {
+    const defaultOption = Array.from(select.options).find(option => option.defaultSelected);
+
+    return defaultOption?.value ?? select.options[0]?.value ?? '';
 }
 
 export function loadSavedOtherBenefits(idx: number): void {
@@ -583,9 +602,12 @@ export function hasSavedPackage2Name(): boolean {
     return value !== 'Paquete 2';
 }
 
-setupComparisonResizeHandler();
+export function initializeHome(): void {
+    if (homeInitialized) {
+        return;
+    }
+    homeInitialized = true;
 
-document.addEventListener('DOMContentLoaded', () => {
     setupHomeActions();
 
     document.querySelectorAll<HTMLInputElement>('.equity-toggle-checkbox').forEach(checkbox => {
@@ -614,4 +636,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initializeComparisonMode(hasSavedPackage2Data);
-});
+}
+
+export function initializeHomeWhenReady(): void {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeHome, { once: true });
+        return;
+    }
+
+    initializeHome();
+}
+
+setupComparisonResizeHandler();
+initializeHomeWhenReady();

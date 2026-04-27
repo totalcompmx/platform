@@ -85,9 +85,7 @@
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 1.5rem;">
-                    <a href="/developers" style="color: #10b981; text-decoration: none; font-weight: 600; font-size: 0.875rem; transition: color 0.2s;" 
-                       onmouseover="this.style.color='#059669'" 
-                       onmouseout="this.style.color='#10b981'">
+                    <a href="/developers" class="tc-hover-green-link" style="color: #10b981; text-decoration: none; font-weight: 600; font-size: 0.875rem; transition: color 0.2s;">
                         &lt;/&gt; API
                     </a>
                     <div style="background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: 500;">
@@ -102,7 +100,7 @@
         {{template "partial:footer" .}}
         
         <!-- Cookie Consent Banner -->
-        <div id="cookieBanner" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; border-top: 3px solid #10b981; padding: 1.25rem 2rem; box-shadow: 0 -4px 12px rgba(0,0,0,0.2); z-index: 9999; box-sizing: border-box;">
+        <div id="cookieBanner" data-cookie-banner hidden style="position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; border-top: 3px solid #10b981; padding: 1.25rem 2rem; box-shadow: 0 -4px 12px rgba(0,0,0,0.2); z-index: 9999; box-sizing: border-box;">
             <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 280px;">
                     <p style="margin: 0; color: white; font-size: 0.9rem; line-height: 1.5;">
@@ -110,33 +108,13 @@
                         <a href="/privacy" style="color: #10b981; text-decoration: underline; font-weight: 600;">Aviso de Privacidad</a>.
                     </p>
                 </div>
-                <button id="acceptCookies" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 8px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(16, 185, 129, 0.3)'">
+                <button type="button" data-action="accept-cookies" class="cookie-accept-button" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap;">
                     Aceptar
                 </button>
             </div>
         </div>
 
-        <script>
-        // Cookie Consent Banner Logic
-        (function() {
-            const cookieBanner = document.getElementById('cookieBanner');
-            const acceptButton = document.getElementById('acceptCookies');
-            
-            // Check if user has already accepted cookies
-            const cookiesAccepted = localStorage.getItem('cookies_accepted');
-            
-            if (!cookiesAccepted) {
-                // Show banner if not accepted yet
-                cookieBanner.style.display = 'block';
-            }
-            
-            // Handle accept button click
-            acceptButton.addEventListener('click', function() {
-                localStorage.setItem('cookies_accepted', 'true');
-                cookieBanner.style.display = 'none';
-            });
-        })();
-        </script>
+        {{viteTags "src/entries/base.ts"}}
     </body>
 </html>
 {{end}}

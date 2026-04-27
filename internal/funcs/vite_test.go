@@ -2,6 +2,7 @@ package funcs
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -74,6 +75,12 @@ func TestViteTags(t *testing.T) {
 
 		assert.NotNil(t, err)
 	})
+}
+
+func TestViteManifestPathIsEmbeddable(t *testing.T) {
+	assert.Equal(t, viteManifestPath, "static/dist/manifest.json")
+	assert.False(t, strings.Contains(viteManifestPath, string(filepath.Separator)+"."))
+	assert.False(t, strings.Contains(viteManifestPath, string(filepath.Separator)+"_"))
 }
 
 func TestViteManifestTagsHandlesDuplicateAndMissingImports(t *testing.T) {

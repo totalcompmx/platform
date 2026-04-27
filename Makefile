@@ -34,7 +34,7 @@ audit: test
 
 ## test: run unit tests
 .PHONY: test
-test: coverage/unit test/go test/js
+test: test/no-inline-js coverage/unit test/go test/js
 
 ## test/go: run Go unit tests
 .PHONY: test/go
@@ -51,6 +51,12 @@ test/integration:
 test/js: frontend/node_modules
 	npm --prefix frontend run typecheck
 	npm --prefix frontend run test:coverage
+
+## test/no-inline-js: reject executable inline scripts and inline event handlers in templates
+.PHONY: test/no-inline-js
+test/no-inline-js:
+	@! rg -n '\son[a-z]+=' assets/templates
+	@! rg -n '<script' assets/templates | rg -v '<script type="application/ld\+json">|<script type="application/json" id="totalcomp-home-config">'
 
 ## coverage/unit: require 100% coverage for all Go unit packages
 .PHONY: coverage/unit

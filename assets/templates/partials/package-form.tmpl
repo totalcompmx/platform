@@ -221,7 +221,7 @@
 {{define "partials/package-form:remove-button"}}
 {{if .ShowRemoveButton}}
 <!-- Remove Button -->
-<button type="button" data-action="remove-comparison" style="position: absolute; top: 1rem; right: 1rem; background: #ef4444; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s ease; z-index: 10;" title="Quitar comparación" onmouseover="this.style.background='#dc2626'; this.style.transform='scale(1.1)';" onmouseout="this.style.background='#ef4444'; this.style.transform='scale(1)';">
+<button type="button" data-action="remove-comparison" class="tc-remove-comparison-button" style="position: absolute; top: 1rem; right: 1rem; background: #ef4444; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s ease; z-index: 10;" title="Quitar comparación">
     🗑️
 </button>
 {{end}}

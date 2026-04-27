@@ -92,6 +92,17 @@ function hiddenInput(id: string, value: string): string {
     return `<input id="${id}" type="hidden" value="${value}">`;
 }
 
+function setHomeConfig(config: unknown): void {
+    setHomeConfigContent(JSON.stringify(config));
+}
+
+function setHomeConfigContent(content: string): void {
+    document.body.insertAdjacentHTML(
+        'beforeend',
+        `<script type="application/json" id="totalcomp-home-config">${content}</script>`
+    );
+}
+
 function packageFixture(index: number): string {
     return `
         <section id="package-${index + 1}" data-package-index="${index}">
@@ -231,7 +242,6 @@ function homeFixture(): void {
 
 beforeEach(() => {
     document.body.innerHTML = '';
-    delete window.TotalCompHome;
     setViewport(1280);
     vi.restoreAllMocks();
     vi.useRealTimers();
@@ -245,25 +255,52 @@ afterEach(() => {
 test('uses template-provided frontend config with safe fallbacks', () => {
     expect(getHomeConfig()).toEqual({});
 
-    window.TotalCompHome = {
+    setHomeConfig({
         csrfToken: 'csrf-from-template',
         usdMxnRate: '19.1234'
-    };
+    });
 
-    expect(getHomeConfig()).toEqual(window.TotalCompHome);
+    expect(getHomeConfig()).toEqual({
+        csrfToken: 'csrf-from-template',
+        usdMxnRate: '19.1234'
+    });
     expect(homeCSRFToken()).toBe('csrf-from-template');
     expect(homeUSDMXNLabel()).toBe('$19.1234');
     expect(homeCSRFToken({})).toBe('');
     expect(homeUSDMXNLabel({})).toBe('$20.00');
 
-    const actualWindow = globalThis.window;
-    vi.stubGlobal('window', undefined);
+    document.body.innerHTML = '';
+    setHomeConfigContent('{');
     expect(getHomeConfig()).toEqual({});
-    vi.stubGlobal('window', actualWindow);
+
+    document.body.innerHTML = '';
+    setHomeConfigContent('');
+    expect(getHomeConfig()).toEqual({});
+
+    document.body.innerHTML = '';
+    setHomeConfig([]);
+    expect(getHomeConfig()).toEqual({});
+
+    document.body.innerHTML = '';
+    setHomeConfigContent('null');
+    expect(getHomeConfig()).toEqual({});
+
+    document.body.innerHTML = '';
+    setHomeConfig('plain-text');
+    expect(getHomeConfig()).toEqual({});
+
+    document.body.innerHTML = '';
+    setHomeConfig({ csrfToken: 123, usdMxnRate: false });
+    expect(getHomeConfig()).toEqual({});
+
+    const actualDocument = globalThis.document;
+    vi.stubGlobal('document', undefined);
+    expect(getHomeConfig()).toEqual({});
+    vi.stubGlobal('document', actualDocument);
 });
 
 test('renders benefit contexts, markup, and saved attributes', () => {
-    window.TotalCompHome = { usdMxnRate: '18.7654' };
+    setHomeConfig({ usdMxnRate: '18.7654' });
 
     const fixed = benefitContext(0, 1, {
         name: 'Internet',
@@ -357,7 +394,7 @@ test('posts clear requests through injected and browser documents', () => {
         configurable: true,
         value: vi.fn(() => true)
     });
-    window.TotalCompHome = { csrfToken: 'browser-token' };
+    setHomeConfig({ csrfToken: 'browser-token' });
     clearAllInputs();
     const browserForm = document.body.querySelector<HTMLFormElement>('form[action="/clear"]');
     expect(browserForm?.method).toBe('POST');
@@ -500,11 +537,11 @@ test('comparison controller handles desktop, mobile, resize, and missing control
 test('home module wires DOMContentLoaded behavior and interactive actions', async () => {
     vi.useFakeTimers();
     setViewport(1280);
-    window.TotalCompHome = {
+    homeFixture();
+    setHomeConfig({
         csrfToken: 'token',
         usdMxnRate: '17.90'
-    };
-    homeFixture();
+    });
 
     const home = await loadHomeModule();
     document.dispatchEvent(new Event('DOMContentLoaded'));
@@ -613,9 +650,73 @@ test('home module wires DOMContentLoaded behavior and interactive actions', asyn
     expect(home.hasSavedPackage2Name()).toBe(false);
 });
 
+test('home module initializes after DOMContentLoaded and preserves typed values across UI toggles', async () => {
+    const originalReadyState = document.readyState;
+    Object.defineProperty(document, 'readyState', {
+        configurable: true,
+        value: 'complete'
+    });
+
+    homeFixture();
+    const salary = expectElement<HTMLInputElement>('.salary-input');
+    const packageName = expectElement<HTMLInputElement>('.package-name-input');
+    const valesAmount = expectElement<HTMLInputElement>('input[name="ValesDespensaAmount[]"]');
+
+    salary.value = '98765';
+    packageName.value = 'Typed offer';
+    valesAmount.value = '1234';
+
+    await loadHomeModule();
+
+    const benefitCountBefore = expectElement<HTMLElement>('#otherBenefits-0').children.length;
+    expectElement<HTMLButtonElement>('[data-action="add-benefit"][data-package-index="0"]').click();
+    expect(expectElement<HTMLElement>('#otherBenefits-0').children.length).toBe(benefitCountBefore + 1);
+
+    expectElement<HTMLButtonElement>('[data-action="add-comparison"]').click();
+    expectElement<HTMLButtonElement>('[data-action="remove-comparison"]').click();
+
+    const regime = expectElement<HTMLSelectElement>('.regime-select');
+    regime.value = 'resico';
+    regime.dispatchEvent(new Event('change'));
+
+    expect(expectElement<HTMLElement>('.currency-selection-0').style.display).toBe('block');
+    expect(salary.value).toBe('98765');
+    expect(packageName.value).toBe('Typed offer');
+    expect(valesAmount.value).toBe('1234');
+
+    Object.defineProperty(document, 'readyState', {
+        configurable: true,
+        value: originalReadyState
+    });
+});
+
+test('home module tolerates partial markup during initialization', async () => {
+    document.body.innerHTML = '<main></main>';
+
+    await loadHomeModule();
+
+    expect(document.body.textContent).toBe('');
+});
+
 test('home helpers cover defensive branches and direct state transitions', async () => {
     homeFixture();
     const home = await loadHomeModule();
+
+    home.initializeHome();
+
+    const originalReadyState = document.readyState;
+    Object.defineProperty(document, 'readyState', {
+        configurable: true,
+        value: 'loading'
+    });
+    const addEventListener = vi.spyOn(document, 'addEventListener');
+    home.initializeHomeWhenReady();
+    expect(addEventListener).toHaveBeenCalledWith('DOMContentLoaded', home.initializeHome, { once: true });
+    addEventListener.mockRestore();
+    Object.defineProperty(document, 'readyState', {
+        configurable: true,
+        value: originalReadyState
+    });
 
     home.setDisplay(null, 'block');
     home.setBenefitCheckboxes(null, true);
@@ -642,9 +743,26 @@ test('home helpers cover defensive branches and direct state transitions', async
     expect(home.savedValue('missing')).toBe('');
     expect(home.savedTrue('missing')).toBe(false);
     expect(home.packageIndexForElement(document.createElement('div'))).toBe(0);
+    home.addClickHandler('.missing-action', () => {});
+
+    const checkboxInput = document.createElement('input');
+    checkboxInput.type = 'checkbox';
+    checkboxInput.defaultChecked = true;
+    checkboxInput.checked = false;
+    expect(home.controlHasUserValue(checkboxInput)).toBe(true);
+
+    const radioInput = document.createElement('input');
+    radioInput.type = 'radio';
+    radioInput.checked = false;
+    expect(home.controlHasUserValue(radioInput)).toBe(false);
 
     const select = document.createElement('select');
     select.innerHTML = '<option value="daily">Daily</option><option value="monthly">Monthly</option>';
+    expect(home.defaultSelectValue(select)).toBe('daily');
+    select.options[1].defaultSelected = true;
+    expect(home.defaultSelectValue(select)).toBe('monthly');
+    const emptySelect = document.createElement('select');
+    expect(home.defaultSelectValue(emptySelect)).toBe('');
     const blocked = select.options[0];
     const allowed = select.options[1];
     select.value = 'daily';
@@ -682,6 +800,7 @@ test('home helpers cover defensive branches and direct state transitions', async
     home.loadSavedVales(1);
     home.loadSavedPrima(1);
     home.loadSavedFondo(1);
+    expectElement<HTMLElement>('#otherBenefits-1').innerHTML = '';
     home.loadSavedOtherBenefits(1);
     expect(expectElement<HTMLElement>('#otherBenefits-1').children.length).toBe(1);
 

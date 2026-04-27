@@ -10,9 +10,7 @@
             </h1>
             <form method="POST" action="/logout" style="margin: 0;">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s;" 
-                        onmouseover="this.style.background='#dc2626'" 
-                        onmouseout="this.style.background='#ef4444'">
+                <button type="submit" class="tc-danger-button" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s;">
                     🚪 Cerrar Sesión
                 </button>
             </form>
@@ -36,16 +34,12 @@
                     Verifica tu cuenta para desbloquear <strong>100 llamadas/mes</strong> (Plan Hobby gratis).
                 </p>
                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <a href="mailto:{{.User.Email}}" style="display: inline-block; background: #0f172a; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.875rem; transition: transform 0.2s;"
-                       onmouseover="this.style.transform='translateY(-2px)'"
-                       onmouseout="this.style.transform='translateY(0)'">
+                    <a href="mailto:{{.User.Email}}" class="tc-hover-raise" style="display: inline-block; background: #0f172a; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.875rem; transition: transform 0.2s;">
                         📧 Revisar Email
                     </a>
                     <form action="/account/resend-verification" method="POST" style="margin: 0;">
                         <input type='hidden' name='csrf_token' value='{{.CSRFToken}}'>
-                        <button type="submit" style="background: transparent; border: 2px solid #92400e; color: #92400e; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 0.2s;"
-                                onmouseover="this.style.background='#92400e'; this.style.color='white'"
-                                onmouseout="this.style.background='transparent'; this.style.color='#92400e'">
+                        <button type="submit" class="tc-warning-outline-button" style="background: transparent; border: 2px solid #92400e; color: #92400e; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 0.2s;">
                             ❓ ¿No recibiste el email?
                         </button>
                     </form>
@@ -79,10 +73,8 @@
 
             <form method="POST" action="/account/api-key" style="margin-bottom: 1rem;">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" style="background: #f59e0b; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s;" 
-                        onmouseover="this.style.background='#d97706'" 
-                        onmouseout="this.style.background='#f59e0b'"
-                        onclick="return confirm('Esto invalidará tu API key actual. ¿Estás seguro?');">
+                <button type="submit" class="api-key-button tc-warning-button" style="background: #f59e0b; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s;"
+                        data-confirm="Esto invalidará tu API key actual. ¿Estás seguro?">
                     🔄 Regenerar API Key
                 </button>
             </form>
@@ -98,9 +90,7 @@
 
             <form method="POST" action="/account/api-key">
                 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-                <button type="submit" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 1rem 2rem; border-radius: 8px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s;" 
-                        onmouseover="this.style.transform='translateY(-2px)'" 
-                        onmouseout="this.style.transform='translateY(0)'">
+                <button type="submit" class="tc-hover-raise" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 1rem 2rem; border-radius: 8px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s;">
                     🚀 Generar API Key
                 </button>
             </form>
@@ -160,14 +150,10 @@
         </div>
 
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-            <a href="/developers" style="background: #6366f1; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;" 
-               onmouseover="this.style.background='#4f46e5'" 
-               onmouseout="this.style.background='#6366f1'">
+            <a href="/developers" class="tc-indigo-button" style="background: #6366f1; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;">
                 📚 Documentación Completa
             </a>
-            <a href="/" style="background: #e2e8f0; color: #0f172a; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;" 
-               onmouseover="this.style.background='#cbd5e1'" 
-               onmouseout="this.style.background='#e2e8f0'">
+            <a href="/" class="tc-neutral-button" style="background: #e2e8f0; color: #0f172a; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: background 0.2s;">
                 🧮 Probar Calculadora
             </a>
         </div>

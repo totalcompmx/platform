@@ -47,9 +47,7 @@
             </div>
 
             <!-- CTA Buttons -->
-            <a href="/login" style="display: block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; padding: 1rem; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1rem; text-align: center; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin-bottom: 1rem;"
-               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 10px rgba(99, 102, 241, 0.4)'"
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(99, 102, 241, 0.3)'">
+            <a href="/login" class="tc-hover-raise-indigo-shadow" style="display: block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; padding: 1rem; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1rem; text-align: center; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin-bottom: 1rem;">
                 🔑 Iniciar Sesión
             </a>
 
@@ -63,14 +61,10 @@
 
             <!-- Secondary Actions -->
             <div style="text-align: center; display: flex; gap: 1rem; flex-direction: column;">
-                <a href="/signup" style="color: #10b981; text-decoration: none; font-size: 0.875rem; font-weight: 600; transition: color 0.2s;"
-                   onmouseover="this.style.color='#059669'; this.style.textDecoration='underline'"
-                   onmouseout="this.style.color='#10b981'; this.style.textDecoration='none'">
+                <a href="/signup" class="tc-hover-green-link-underline" style="color: #10b981; text-decoration: none; font-size: 0.875rem; font-weight: 600; transition: color 0.2s;">
                     ¿No tienes cuenta? Regístrate gratis
                 </a>
-                <a href="/" style="color: #94a3b8; text-decoration: none; font-size: 0.875rem; transition: color 0.2s;"
-                   onmouseover="this.style.color='#f8fafc'"
-                   onmouseout="this.style.color='#94a3b8'">
+                <a href="/" class="tc-hover-light-link" style="color: #94a3b8; text-decoration: none; font-size: 0.875rem; transition: color 0.2s;">
                     ← Volver al inicio
                 </a>
             </div>
@@ -86,4 +80,3 @@
     </div>
 </div>
 {{end}}
-

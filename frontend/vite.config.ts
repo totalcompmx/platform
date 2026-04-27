@@ -5,10 +5,11 @@ export default defineConfig({
   base: '/static/dist/',
   build: {
     emptyOutDir: true,
-    manifest: true,
+    manifest: 'manifest.json',
     outDir: '../assets/static/dist',
     rollupOptions: {
       input: {
+        base: resolve(__dirname, 'src/entries/base.ts'),
         home: resolve(__dirname, 'src/entries/home.ts')
       }
     }
@@ -27,7 +28,7 @@ export default defineConfig({
   test: {
     coverage: {
       exclude: ['src/entries/**', 'src/vite-env.d.ts'],
-      include: ['src/home/**/*.ts'],
+      include: ['src/home/**/*.ts', 'src/shared/**/*.ts'],
       provider: 'v8',
       reporter: ['text'],
       thresholds: {

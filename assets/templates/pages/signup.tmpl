@@ -45,9 +45,8 @@
                         name="Email" 
                         value="{{.Form.Email}}"
                         placeholder="tu@email.com"
+                        class="tc-focus-indigo"
                         style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{template "signup:border-color" .Form.Validator.FieldErrors.Email}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
-                        onfocus="this.style.borderColor='#6366f1'"
-                        onblur="this.style.borderColor='{{template "signup:border-color" .Form.Validator.FieldErrors.Email}}'"
                         required>
                     {{template "signup:field-error" .Form.Validator.FieldErrors.Email}}
                 </div>
@@ -61,9 +60,8 @@
                         type="password" 
                         name="Password"
                         placeholder="Mínimo 8 caracteres"
+                        class="tc-focus-indigo"
                         style="width: 100%; padding: 0.75rem; background: #0f172a; border: 2px solid {{template "signup:border-color" .Form.Validator.FieldErrors.Password}}; border-radius: 8px; color: #f8fafc; font-size: 0.875rem; box-sizing: border-box; outline: none; transition: border-color 0.2s;"
-                        onfocus="this.style.borderColor='#6366f1'"
-                        onblur="this.style.borderColor='{{template "signup:border-color" .Form.Validator.FieldErrors.Password}}'"
                         required>
                     {{template "signup:field-error" .Form.Validator.FieldErrors.Password}}
                     <p style="color: #64748b; font-size: 0.7rem; margin: 0.5rem 0 0 0;">
@@ -74,9 +72,8 @@
                 <!-- Submit Button -->
                 <button 
                     type="submit"
-                    style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 0.875rem; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; box-sizing: border-box;"
-                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 10px rgba(16, 185, 129, 0.4)'"
-                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(16, 185, 129, 0.3)'">
+                    class="tc-hover-raise-green-shadow"
+                    style="width: 100%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 0.875rem; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; box-sizing: border-box;">
                     🚀 Crear Cuenta
                 </button>
             </form>
@@ -93,9 +90,7 @@
             <div style="text-align: center;">
                 <p style="color: #94a3b8; font-size: 0.875rem; margin: 0;">
                     ¿Ya tienes cuenta?
-                    <a href="/login" style="color: #10b981; text-decoration: none; font-weight: 600; transition: color 0.2s;"
-                       onmouseover="this.style.color='#059669'; this.style.textDecoration='underline'"
-                       onmouseout="this.style.color='#10b981'; this.style.textDecoration='none'">
+                    <a href="/login" class="tc-hover-green-link-underline" style="color: #10b981; text-decoration: none; font-weight: 600; transition: color 0.2s;">
                         Inicia sesión aquí
                     </a>
                 </p>

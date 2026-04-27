@@ -111,7 +111,7 @@
             </div>
             <!-- Add Comparison Button (Vertical, Right Side) -->
             <div id="addComparisonButton" style="display: none; position: absolute; left: calc(50% + 390px + 1rem); top: 0; align-items: center; justify-content: center;">
-                <button type="button" data-action="add-comparison" style="writing-mode: vertical-rl; text-orientation: mixed; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #3b82f6; padding: 1.5rem 0.75rem; border: 2px dashed #3b82f6; border-radius: 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; max-height: 420px;" onmouseover="this.style.background='linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)'; this.style.borderColor='#2563eb'; this.style.color='#2563eb'; this.style.borderStyle='solid';" onmouseout="this.style.background='linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)'; this.style.borderColor='#3b82f6'; this.style.color='#3b82f6'; this.style.borderStyle='dashed';">
+                <button type="button" data-action="add-comparison" class="tc-add-comparison-button" style="writing-mode: vertical-rl; text-orientation: mixed; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #3b82f6; padding: 1.5rem 0.75rem; border: 2px dashed #3b82f6; border-radius: 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; max-height: 420px;">
                     <span style="font-size: 1.1rem;">➕</span>
                     <span class="btn-text-desktop" style="display: inline;">Comparar con otro paquete de compensación</span>
                     <span class="btn-text-mobile" style="display: none;">Añadir comparación</span>
@@ -134,10 +134,10 @@
 
         <!-- Submit Button -->
         <div style="text-align: center; margin-bottom: 2rem;">
-            <button id="submitButton" type="submit" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1rem 3rem; border: none; border-radius: 8px; font-size: 1.25rem; font-weight: 700; cursor: pointer; box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin-right: 1rem;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 16px rgba(16, 185, 129, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 6px 12px rgba(16, 185, 129, 0.3)'">
+            <button id="submitButton" type="submit" class="tc-hover-raise-green-shadow-strong" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1rem 3rem; border: none; border-radius: 8px; font-size: 1.25rem; font-weight: 700; cursor: pointer; box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; margin-right: 1rem;">
                 💰 Calcular Compensación
             </button>
-            <button id="clearInputsButton" type="button" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3); transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(239, 68, 68, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(239, 68, 68, 0.3)'">
+            <button id="clearInputsButton" type="button" class="tc-hover-raise-red-shadow" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3); transition: transform 0.2s, box-shadow 0.2s;">
                 🗑️ Limpiar Todo
             </button>
         </div>
@@ -198,7 +198,7 @@
 
         <!-- Download PDF Button (at bottom) -->
         <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e2e8f0;">
-            <a href="/export-pdf" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; padding: 0.875rem 2rem; border: none; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 6px 12px rgba(99, 102, 241, 0.3); transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 16px rgba(99, 102, 241, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 6px 12px rgba(99, 102, 241, 0.3)'">
+            <a href="/export-pdf" target="_blank" class="tc-hover-raise-indigo-shadow-strong" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; padding: 0.875rem 2rem; border: none; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 6px 12px rgba(99, 102, 241, 0.3); transition: transform 0.2s, box-shadow 0.2s;">
                 📄 Descargar Reporte PDF
             </a>
             <div style="margin-top: 0.75rem; font-size: 0.875rem; color: #64748b;">
@@ -539,10 +539,10 @@
 {{end}}
 
 {{define "home:script-config"}}
-<script>
-window.TotalCompHome = {
-    csrfToken: {{.CSRFToken}},
-    usdMxnRate: {{if .FiscalYear}}{{formatFloat .FiscalYear.USDMXNRate 4}}{{else}}{{"20.00"}}{{end}}
-};
+<script type="application/json" id="totalcomp-home-config">
+{
+    "csrfToken": "{{.CSRFToken}}",
+    "usdMxnRate": "{{if .FiscalYear}}{{formatFloat .FiscalYear.USDMXNRate 4}}{{else}}20.0000{{end}}"
+}
 </script>
 {{end}}

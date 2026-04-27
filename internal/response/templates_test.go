@@ -56,8 +56,9 @@ func TestHomePageScriptConfig(t *testing.T) {
 	assert.Nil(t, err)
 	body := w.Body.String()
 	assert.True(t, strings.Contains(body, `/static/dist/assets/home`) || !strings.Contains(body, `type="module"`))
-	assert.True(t, strings.Contains(body, `csrfToken: "csrf-token"`))
-	assert.True(t, strings.Contains(body, `usdMxnRate: "19.1234"`))
+	assert.True(t, strings.Contains(body, `<script type="application/json" id="totalcomp-home-config">`))
+	assert.True(t, strings.Contains(body, `"csrfToken": "csrf-token"`))
+	assert.True(t, strings.Contains(body, `"usdMxnRate": "19.1234"`))
 }
 
 func TestNamedTemplateWithHeaders(t *testing.T) {
