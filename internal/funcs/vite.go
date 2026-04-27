@@ -101,46 +101,75 @@ func missingViteEntryError(entry string) error {
 func viteCSSFiles(manifest viteManifest, entry string) []string {
 	chunks := []viteManifestChunk{manifest[entry]}
 	chunks = append(chunks, viteImportedChunks(manifest, entry)...)
+	return uniqueCSSFiles(chunks)
+}
 
+func uniqueCSSFiles(chunks []viteManifestChunk) []string {
 	seen := make(map[string]bool)
 	cssFiles := make([]string, 0)
 	for _, chunk := range chunks {
-		for _, cssFile := range chunk.CSS {
-			if seen[cssFile] {
-				continue
-			}
-			seen[cssFile] = true
-			cssFiles = append(cssFiles, cssFile)
-		}
+		cssFiles = appendNewCSSFiles(cssFiles, seen, chunk.CSS)
 	}
 
 	return cssFiles
 }
 
-func viteImportedChunks(manifest viteManifest, entry string) []viteManifestChunk {
-	seen := make(map[string]bool)
-	chunks := make([]viteManifestChunk, 0)
-
-	var visit func(name string)
-	visit = func(name string) {
-		chunk, ok := manifest[name]
-		if !ok {
-			return
+func appendNewCSSFiles(cssFiles []string, seen map[string]bool, candidates []string) []string {
+	for _, cssFile := range candidates {
+		if seen[cssFile] {
+			continue
 		}
-		for _, importName := range chunk.Imports {
-			if seen[importName] {
-				continue
-			}
-			seen[importName] = true
-			visit(importName)
-			if importedChunk, ok := manifest[importName]; ok {
-				chunks = append(chunks, importedChunk)
-			}
-		}
+		seen[cssFile] = true
+		cssFiles = append(cssFiles, cssFile)
 	}
+	return cssFiles
+}
 
-	visit(entry)
-	return chunks
+func viteImportedChunks(manifest viteManifest, entry string) []viteManifestChunk {
+	collector := viteImportCollector{
+		manifest: manifest,
+		seen:     make(map[string]bool),
+		chunks:   make([]viteManifestChunk, 0),
+	}
+	collector.visit(entry)
+	return collector.chunks
+}
+
+type viteImportCollector struct {
+	manifest viteManifest
+	seen     map[string]bool
+	chunks   []viteManifestChunk
+}
+
+func (collector *viteImportCollector) visit(name string) {
+	chunk, ok := collector.manifest[name]
+	if !ok {
+		return
+	}
+	collector.visitImports(chunk.Imports)
+}
+
+func (collector *viteImportCollector) visitImports(imports []string) {
+	for _, importName := range imports {
+		collector.visitImport(importName)
+	}
+}
+
+func (collector *viteImportCollector) visitImport(importName string) {
+	if collector.seen[importName] {
+		return
+	}
+	collector.seen[importName] = true
+	collector.visit(importName)
+	collector.appendImport(importName)
+}
+
+func (collector *viteImportCollector) appendImport(importName string) {
+	importedChunk, ok := collector.manifest[importName]
+	if !ok {
+		return
+	}
+	collector.chunks = append(collector.chunks, importedChunk)
 }
 
 func viteFallbackTags(paths []string) []string {

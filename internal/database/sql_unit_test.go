@@ -56,49 +56,10 @@ func TestNewReportsConnectorErrors(t *testing.T) {
 }
 
 func TestMigrateUp(t *testing.T) {
-	t.Run("runs migrations", func(t *testing.T) {
-		runner := &fakeMigrationRunner{}
-		restore := stubMigrationSeams(nil, runner)
-		defer restore()
-
-		err := (&DB{dsn: "unit"}).MigrateUp()
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !runner.ran {
-			t.Fatal("migration runner was not called")
-		}
-	})
-
-	t.Run("reports source errors", func(t *testing.T) {
-		restore := stubMigrationSeams(errors.New("source failed"), &fakeMigrationRunner{})
-		defer restore()
-
-		err := (&DB{dsn: "unit"}).MigrateUp()
-
-		assertErrorContains(t, err, "source failed")
-	})
-
-	t.Run("reports runner creation errors", func(t *testing.T) {
-		restore := stubMigrationRunnerError(errors.New("runner failed"))
-		defer restore()
-
-		err := (&DB{dsn: "unit"}).MigrateUp()
-
-		assertErrorContains(t, err, "runner failed")
-	})
-
-	t.Run("ignores no change", func(t *testing.T) {
-		restore := stubMigrationSeams(nil, &fakeMigrationRunner{err: migrate.ErrNoChange})
-		defer restore()
-
-		err := (&DB{dsn: "unit"}).MigrateUp()
-
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
+	t.Run("runs migrations", testMigrateUpRunsMigrations)
+	t.Run("reports source errors", testMigrateUpSourceError)
+	t.Run("reports runner creation errors", testMigrateUpRunnerError)
+	t.Run("ignores no change", testMigrateUpNoChange)
 }
 
 func TestDefaultMigrationRunnerReportsInvalidDriver(t *testing.T) {
@@ -108,88 +69,80 @@ func TestDefaultMigrationRunnerReportsInvalidDriver(t *testing.T) {
 	}
 }
 
-func TestPayrollQueries(t *testing.T) {
-	db := newFakeDB(t, &fakeSQL{})
+func testMigrateUpRunsMigrations(t *testing.T) {
+	runner := &fakeMigrationRunner{}
+	restore := stubMigrationSeams(nil, runner)
+	defer restore()
 
-	if _, found, err := db.GetActiveFiscalYear(); err != nil || !found {
-		t.Fatalf("GetActiveFiscalYear found=%t err=%v", found, err)
-	}
-	if _, err := db.GetISRBrackets(1); err != nil {
+	err := (&DB{dsn: "unit"}).MigrateUp()
+
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.GetIMSSConcepts(); err != nil {
+	if !runner.ran {
+		t.Fatal("migration runner was not called")
+	}
+}
+
+func testMigrateUpSourceError(t *testing.T) {
+	restore := stubMigrationSeams(errors.New("source failed"), &fakeMigrationRunner{})
+	defer restore()
+
+	err := (&DB{dsn: "unit"}).MigrateUp()
+
+	assertErrorContains(t, err, "source failed")
+}
+
+func testMigrateUpRunnerError(t *testing.T) {
+	restore := stubMigrationRunnerError(errors.New("runner failed"))
+	defer restore()
+
+	err := (&DB{dsn: "unit"}).MigrateUp()
+
+	assertErrorContains(t, err, "runner failed")
+}
+
+func testMigrateUpNoChange(t *testing.T) {
+	restore := stubMigrationSeams(nil, &fakeMigrationRunner{err: migrate.ErrNoChange})
+	defer restore()
+
+	err := (&DB{dsn: "unit"}).MigrateUp()
+
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := db.GetCesantiaBracket(1, 2); err != nil || !found {
-		t.Fatalf("GetCesantiaBracket found=%t err=%v", found, err)
-	}
-	if _, found, err := db.GetRESICOBracket(1, 5000); err != nil || !found {
-		t.Fatalf("GetRESICOBracket found=%t err=%v", found, err)
-	}
-	if err := db.UpdateExchangeRate(20); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.UpsertUMAForYear(2026, 1, 2, 3); err != nil {
-		t.Fatal(err)
-	}
+}
+
+func TestPayrollQueries(t *testing.T) {
+	t.Run("active fiscal year", testActiveFiscalYearQuery)
+	t.Run("ISR brackets", testISRBracketsQuery)
+	t.Run("IMSS concepts", testIMSSConceptsQuery)
+	t.Run("cesantia bracket", testCesantiaBracketQuery)
+	t.Run("RESICO bracket", testRESICOBracketQuery)
+	t.Run("exchange rate update", testExchangeRateUpdate)
+	t.Run("UMA upsert", testUMAUpsert)
 }
 
 func TestUserQueries(t *testing.T) {
-	db := newFakeDB(t, &fakeSQL{})
-
-	if id, err := db.InsertUser("a@example.com", "hash"); err != nil || id != 123 {
-		t.Fatalf("InsertUser id=%d err=%v", id, err)
-	}
-	if _, found, err := db.GetUser(123); err != nil || !found {
-		t.Fatalf("GetUser found=%t err=%v", found, err)
-	}
-	if _, found, err := db.GetUserByEmail("a@example.com"); err != nil || !found {
-		t.Fatalf("GetUserByEmail found=%t err=%v", found, err)
-	}
-	if err := db.UpdateUserHashedPassword(123, "new"); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.UpdateUserAPIKey(123, "key"); err != nil {
-		t.Fatal(err)
-	}
-	if _, found, err := db.GetUserByAPIKey("key"); err != nil || !found {
-		t.Fatalf("GetUserByAPIKey found=%t err=%v", found, err)
-	}
-	if err := db.IncrementAPICallsCount(123); err != nil {
-		t.Fatal(err)
-	}
-	if count, err := db.GetDailyAPICallCount(123); err != nil || count != 7 {
-		t.Fatalf("GetDailyAPICallCount count=%d err=%v", count, err)
-	}
-	if err := db.LogAPICall(123); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.InsertEmailVerificationToken(123, "hash"); err != nil {
-		t.Fatal(err)
-	}
-	if id, found, err := db.GetUserIDFromVerificationToken("hash"); err != nil || !found || id != 123 {
-		t.Fatalf("GetUserIDFromVerificationToken id=%d found=%t err=%v", id, found, err)
-	}
-	if err := db.VerifyUserEmail(123); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.DeleteEmailVerificationTokensForUser(123); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("insert user", testInsertUserQuery)
+	t.Run("get user by ID", testGetUserQuery)
+	t.Run("get user by email", testGetUserByEmailQuery)
+	t.Run("update password", testUpdateUserPasswordQuery)
+	t.Run("update API key", testUpdateUserAPIKeyQuery)
+	t.Run("get user by API key", testGetUserByAPIKeyQuery)
+	t.Run("increment API call count", testIncrementAPICallsCountQuery)
+	t.Run("daily API call count", testDailyAPICallCountQuery)
+	t.Run("log API call", testLogAPICallQuery)
+	t.Run("insert verification token", testInsertVerificationTokenQuery)
+	t.Run("get user ID from verification token", testGetUserIDFromVerificationTokenQuery)
+	t.Run("verify user email", testVerifyUserEmailQuery)
+	t.Run("delete verification tokens", testDeleteEmailVerificationTokensQuery)
 }
 
 func TestPasswordResetQueries(t *testing.T) {
-	db := newFakeDB(t, &fakeSQL{})
-
-	if err := db.InsertPasswordReset("hash", 123, time.Hour); err != nil {
-		t.Fatal(err)
-	}
-	if reset, found, err := db.GetPasswordReset("hash"); err != nil || !found || reset.UserID != 123 {
-		t.Fatalf("GetPasswordReset reset=%v found=%t err=%v", reset, found, err)
-	}
-	if err := db.DeletePasswordResets(123); err != nil {
-		t.Fatal(err)
-	}
+	t.Run("insert password reset", testInsertPasswordResetQuery)
+	t.Run("get password reset", testGetPasswordResetQuery)
+	t.Run("delete password resets", testDeletePasswordResetsQuery)
 }
 
 func TestNoRowsBranches(t *testing.T) {
@@ -212,6 +165,155 @@ func TestNoRowsBranches(t *testing.T) {
 	}
 	if _, found, err := db.GetRESICOBracket(1, 1); err != nil || found {
 		t.Fatalf("GetRESICOBracket found=%t err=%v", found, err)
+	}
+}
+
+func testActiveFiscalYearQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetActiveFiscalYear()
+	assertFound(t, "GetActiveFiscalYear", found, err)
+}
+
+func testISRBracketsQuery(t *testing.T) {
+	_, err := newFakeDB(t, &fakeSQL{}).GetISRBrackets(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testIMSSConceptsQuery(t *testing.T) {
+	_, err := newFakeDB(t, &fakeSQL{}).GetIMSSConcepts()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testCesantiaBracketQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetCesantiaBracket(1, 2)
+	assertFound(t, "GetCesantiaBracket", found, err)
+}
+
+func testRESICOBracketQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetRESICOBracket(1, 5000)
+	assertFound(t, "GetRESICOBracket", found, err)
+}
+
+func testExchangeRateUpdate(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).UpdateExchangeRate(20)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testUMAUpsert(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testInsertUserQuery(t *testing.T) {
+	id, err := newFakeDB(t, &fakeSQL{}).InsertUser("a@example.com", "hash")
+	if err != nil || id != 123 {
+		t.Fatalf("InsertUser id=%d err=%v", id, err)
+	}
+}
+
+func testGetUserQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetUser(123)
+	assertFound(t, "GetUser", found, err)
+}
+
+func testGetUserByEmailQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetUserByEmail("a@example.com")
+	assertFound(t, "GetUserByEmail", found, err)
+}
+
+func testUpdateUserPasswordQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).UpdateUserHashedPassword(123, "new")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testUpdateUserAPIKeyQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).UpdateUserAPIKey(123, "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testGetUserByAPIKeyQuery(t *testing.T) {
+	_, found, err := newFakeDB(t, &fakeSQL{}).GetUserByAPIKey("key")
+	assertFound(t, "GetUserByAPIKey", found, err)
+}
+
+func testIncrementAPICallsCountQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).IncrementAPICallsCount(123)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testDailyAPICallCountQuery(t *testing.T) {
+	count, err := newFakeDB(t, &fakeSQL{}).GetDailyAPICallCount(123)
+	if err != nil || count != 7 {
+		t.Fatalf("GetDailyAPICallCount count=%d err=%v", count, err)
+	}
+}
+
+func testLogAPICallQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).LogAPICall(123)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testInsertVerificationTokenQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).InsertEmailVerificationToken(123, "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testGetUserIDFromVerificationTokenQuery(t *testing.T) {
+	id, found, err := newFakeDB(t, &fakeSQL{}).GetUserIDFromVerificationToken("hash")
+	if err != nil || !found || id != 123 {
+		t.Fatalf("GetUserIDFromVerificationToken id=%d found=%t err=%v", id, found, err)
+	}
+}
+
+func testVerifyUserEmailQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).VerifyUserEmail(123)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testDeleteEmailVerificationTokensQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).DeleteEmailVerificationTokensForUser(123)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testInsertPasswordResetQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).InsertPasswordReset("hash", 123, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testGetPasswordResetQuery(t *testing.T) {
+	reset, found, err := newFakeDB(t, &fakeSQL{}).GetPasswordReset("hash")
+	if err != nil || !found || reset.UserID != 123 {
+		t.Fatalf("GetPasswordReset reset=%v found=%t err=%v", reset, found, err)
+	}
+}
+
+func testDeletePasswordResetsQuery(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{}).DeletePasswordResets(123)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -256,24 +358,12 @@ func TestSpecificQueryErrors(t *testing.T) {
 }
 
 func TestUpsertUMAErrorBranches(t *testing.T) {
-	if err := newFakeDB(t, &fakeSQL{execErrFor: "insert into fiscal_years"}).UpsertUMAForYear(2026, 1, 2, 3); err == nil {
-		t.Fatal("expected upsert exec error")
-	}
-	if err := newFakeDB(t, &fakeSQL{queryErrFor: "select id from fiscal_years where year"}).UpsertUMAForYear(2026, 1, 2, 3); err == nil {
-		t.Fatal("expected target fiscal year query error")
-	}
-	if err := newFakeDB(t, &fakeSQL{queryErrFor: "order by year desc"}).UpsertUMAForYear(2026, 1, 2, 3); err == nil {
-		t.Fatal("expected source fiscal year query error")
-	}
-	if err := newFakeDB(t, &fakeSQL{sourceNoRows: true}).UpsertUMAForYear(2026, 1, 2, 3); err != nil {
-		t.Fatal(err)
-	}
-	if err := newFakeDB(t, &fakeSQL{execErrFor: "insert into isr_brackets"}).UpsertUMAForYear(2026, 1, 2, 3); err == nil {
-		t.Fatal("expected clone exec error")
-	}
-	if err := newFakeDB(t, &fakeSQL{execErrFor: "set is_active = false"}).UpsertUMAForYear(2026, 1, 2, 3); err == nil {
-		t.Fatal("expected deactivate exec error")
-	}
+	t.Run("insert fiscal year error", testUpsertUMAInsertError)
+	t.Run("target fiscal year query error", testUpsertUMATargetQueryError)
+	t.Run("source fiscal year query error", testUpsertUMASourceQueryError)
+	t.Run("source fiscal year not found", testUpsertUMASourceNotFound)
+	t.Run("clone bracket error", testUpsertUMACloneError)
+	t.Run("deactivate fiscal years error", testUpsertUMADeactivateError)
 }
 
 func TestVerifyUserEmailErrorBranches(t *testing.T) {
@@ -297,6 +387,48 @@ func TestRowsAffectedErrors(t *testing.T) {
 	}
 	if err := requireRowsAffected(fakeResult{err: errors.New("rows failed")}); err == nil {
 		t.Fatal("expected rows affected error")
+	}
+}
+
+func testUpsertUMAInsertError(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{execErrFor: "insert into fiscal_years"}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err == nil {
+		t.Fatal("expected upsert exec error")
+	}
+}
+
+func testUpsertUMATargetQueryError(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{queryErrFor: "select id from fiscal_years where year"}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err == nil {
+		t.Fatal("expected target fiscal year query error")
+	}
+}
+
+func testUpsertUMASourceQueryError(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{queryErrFor: "order by year desc"}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err == nil {
+		t.Fatal("expected source fiscal year query error")
+	}
+}
+
+func testUpsertUMASourceNotFound(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{sourceNoRows: true}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testUpsertUMACloneError(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{execErrFor: "insert into isr_brackets"}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err == nil {
+		t.Fatal("expected clone exec error")
+	}
+}
+
+func testUpsertUMADeactivateError(t *testing.T) {
+	err := newFakeDB(t, &fakeSQL{execErrFor: "set is_active = false"}).UpsertUMAForYear(2026, 1, 2, 3)
+	if err == nil {
+		t.Fatal("expected deactivate exec error")
 	}
 }
 
@@ -386,30 +518,51 @@ func (c fakeConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx
 }
 
 func (c fakeConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if err := c.queryError(query); err != nil {
+		return nil, err
+	}
+	if c.emptyQueryResult(query) {
+		return emptyRowsForQuery(query), nil
+	}
+
+	rows := rowsForQuery(query)
+	c.applyBadScan(query, rows)
+	c.applyRowsError(query, rows)
+	return rows, nil
+}
+
+func (c fakeConn) queryError(query string) error {
 	if c.fake.queryErr != nil {
-		return nil, c.fake.queryErr
+		return c.fake.queryErr
 	}
 	if containsQuery(query, c.fake.queryErrFor) {
-		return nil, errors.New("query failed")
+		return errors.New("query failed")
 	}
-	if c.fake.sourceNoRows && containsQuery(query, "where year <>") {
-		return emptyRowsForQuery(query), nil
+	return nil
+}
+
+func (c fakeConn) emptyQueryResult(query string) bool {
+	return c.fake.noRows || c.fake.sourceNoRows && containsQuery(query, "where year <>")
+}
+
+func (c fakeConn) applyBadScan(query string, rows *fakeRows) {
+	if !containsQuery(query, c.fake.badScanFor) {
+		return
 	}
-	if c.fake.noRows {
-		return emptyRowsForQuery(query), nil
+	rows.values[0][badScanColumn(query)] = "not-a-number"
+}
+
+func badScanColumn(query string) int {
+	if strings.Contains(strings.ToLower(query), "from imss_concepts") {
+		return 1
 	}
-	rows := rowsForQuery(query)
-	if containsQuery(query, c.fake.badScanFor) {
-		if strings.Contains(strings.ToLower(query), "from imss_concepts") {
-			rows.values[0][1] = "not-a-number"
-		} else {
-			rows.values[0][0] = "not-a-number"
-		}
-	}
+	return 0
+}
+
+func (c fakeConn) applyRowsError(query string, rows *fakeRows) {
 	if containsQuery(query, c.fake.rowsErrFor) {
 		rows.err = errors.New("rows failed")
 	}
-	return rows, nil
 }
 
 func (c fakeConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
@@ -469,34 +622,52 @@ func containsQuery(query string, pattern string) bool {
 
 func rowsForQuery(query string) *fakeRows {
 	normalized := strings.ToLower(query)
-	switch {
-	case strings.Contains(normalized, "from fiscal_years") && strings.Contains(normalized, "is_active = true"):
-		return row(fiscalYearColumns(), fiscalYearValues())
-	case strings.Contains(normalized, "from isr_brackets"):
-		return row([]string{"lower_limit", "upper_limit", "fixed_fee", "surplus_percent"}, []driver.Value{0.01, 1000000.0, 0.0, 0.2})
-	case strings.Contains(normalized, "from imss_concepts"):
-		return row([]string{"concept_name", "worker_percent", "employer_percent", "base_cap_in_umas", "is_fixed_rate"}, []driver.Value{"Concept", 0.01, 0.02, int64(25), true})
-	case strings.Contains(normalized, "from imss_employer_cesantia_brackets"):
-		return row([]string{"lower_bound_uma", "upper_bound_uma", "employer_percent"}, []driver.Value{0.0, 25.0, 0.02})
-	case strings.Contains(normalized, "from resico_brackets"):
-		return row([]string{"upper_limit", "applicable_rate"}, []driver.Value{1000000.0, 0.015})
-	case strings.Contains(normalized, "insert into users"):
-		return row([]string{"id"}, []driver.Value{int64(123)})
-	case strings.Contains(normalized, "select * from users"):
-		return row(userColumns(), userValues())
-	case strings.Contains(normalized, "select count(*)"):
-		return row([]string{"count"}, []driver.Value{int64(7)})
-	case strings.Contains(normalized, "select user_id"):
-		return row([]string{"user_id"}, []driver.Value{int64(123)})
-	case strings.Contains(normalized, "select * from password_resets"):
-		return row([]string{"hashed_token", "user_id", "expiry"}, []driver.Value{"hash", int64(123), time.Now().Add(time.Hour)})
-	case strings.Contains(normalized, "select id from fiscal_years where year ="):
-		return row([]string{"id"}, []driver.Value{int64(10)})
-	case strings.Contains(normalized, "where year <>"):
-		return row([]string{"id"}, []driver.Value{int64(9)})
-	default:
-		return row([]string{"id"}, []driver.Value{int64(1)})
+	for _, spec := range fakeRowSpecs() {
+		if spec.matches(normalized) {
+			return row(spec.columns(), spec.values())
+		}
 	}
+	return row([]string{"id"}, []driver.Value{int64(1)})
+}
+
+type fakeRowSpec struct {
+	patterns []string
+	columns  func() []string
+	values   func() []driver.Value
+}
+
+func (spec fakeRowSpec) matches(query string) bool {
+	for _, pattern := range spec.patterns {
+		if !strings.Contains(query, pattern) {
+			return false
+		}
+	}
+	return true
+}
+
+func fakeRowSpecs() []fakeRowSpec {
+	return []fakeRowSpec{
+		newFakeRowSpec([]string{"from fiscal_years", "is_active = true"}, fiscalYearColumns, fiscalYearValues),
+		fixedFakeRowSpec("from isr_brackets", []string{"lower_limit", "upper_limit", "fixed_fee", "surplus_percent"}, []driver.Value{0.01, 1000000.0, 0.0, 0.2}),
+		fixedFakeRowSpec("from imss_concepts", []string{"concept_name", "worker_percent", "employer_percent", "base_cap_in_umas", "is_fixed_rate"}, []driver.Value{"Concept", 0.01, 0.02, int64(25), true}),
+		fixedFakeRowSpec("from imss_employer_cesantia_brackets", []string{"lower_bound_uma", "upper_bound_uma", "employer_percent"}, []driver.Value{0.0, 25.0, 0.02}),
+		fixedFakeRowSpec("from resico_brackets", []string{"upper_limit", "applicable_rate"}, []driver.Value{1000000.0, 0.015}),
+		fixedFakeRowSpec("insert into users", []string{"id"}, []driver.Value{int64(123)}),
+		newFakeRowSpec([]string{"select * from users"}, userColumns, userValues),
+		fixedFakeRowSpec("select count(*)", []string{"count"}, []driver.Value{int64(7)}),
+		fixedFakeRowSpec("select user_id", []string{"user_id"}, []driver.Value{int64(123)}),
+		newFakeRowSpec([]string{"select * from password_resets"}, passwordResetColumns, passwordResetValues),
+		fixedFakeRowSpec("select id from fiscal_years where year =", []string{"id"}, []driver.Value{int64(10)}),
+		fixedFakeRowSpec("where year <>", []string{"id"}, []driver.Value{int64(9)}),
+	}
+}
+
+func fixedFakeRowSpec(pattern string, columns []string, values []driver.Value) fakeRowSpec {
+	return newFakeRowSpec([]string{pattern}, func() []string { return columns }, func() []driver.Value { return values })
+}
+
+func newFakeRowSpec(patterns []string, columns func() []string, values func() []driver.Value) fakeRowSpec {
+	return fakeRowSpec{patterns: patterns, columns: columns, values: values}
 }
 
 func emptyRowsForQuery(query string) *fakeRows {
@@ -506,7 +677,10 @@ func emptyRowsForQuery(query string) *fakeRows {
 }
 
 func row(columns []string, values []driver.Value) *fakeRows {
-	return &fakeRows{columns: columns, values: [][]driver.Value{values}}
+	return &fakeRows{
+		columns: append([]string(nil), columns...),
+		values:  [][]driver.Value{append([]driver.Value(nil), values...)},
+	}
 }
 
 func fiscalYearColumns() []string {
@@ -524,6 +698,14 @@ func userColumns() []string {
 func userValues() []driver.Value {
 	now := time.Now()
 	return []driver.Value{int64(123), now, "a@example.com", "hash", "key", int64(7), now, true, now}
+}
+
+func passwordResetColumns() []string {
+	return []string{"hashed_token", "user_id", "expiry"}
+}
+
+func passwordResetValues() []driver.Value {
+	return []driver.Value{"hash", int64(123), time.Now().Add(time.Hour)}
 }
 
 type fakeResult struct {
@@ -584,6 +766,13 @@ func assertErrorContains(t *testing.T, err error, want string) {
 	t.Helper()
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v; want containing %q", err, want)
+	}
+}
+
+func assertFound(t *testing.T, name string, found bool, err error) {
+	t.Helper()
+	if err != nil || !found {
+		t.Fatalf("%s found=%t err=%v", name, found, err)
 	}
 }
 

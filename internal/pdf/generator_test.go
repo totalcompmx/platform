@@ -117,23 +117,13 @@ func TestNewChromePDFRenderer(t *testing.T) {
 	renderer := newChromePDFRenderer()
 	ctx := cdp.WithExecutor(context.Background(), fakeCDPExecutor{})
 
-	if renderer.renderingDeadline != 30*time.Second {
-		t.Fatalf("got %s; want 30s", renderer.renderingDeadline)
-	}
+	assertDuration(t, renderer.renderingDeadline, 30*time.Second)
 	_ = renderer.navigate("about:blank")
-	if _, err := renderer.frameTree(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := renderer.setDocument(ctx, "root", "<html>ok</html>"); err != nil {
-		t.Fatal(err)
-	}
+	requireFrameTree(t, renderer, ctx)
+	requireSetDocument(t, renderer, ctx)
 	pdfBytes, err := renderer.printToPDF(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(pdfBytes) != "%PDF" {
-		t.Fatalf("got %q; want fake PDF bytes", pdfBytes)
-	}
+	requireNoError(t, err)
+	assertString(t, string(pdfBytes), "%PDF")
 }
 
 func fakePDFRenderer(t *testing.T) chromePDFRenderer {
@@ -147,33 +137,40 @@ func fakePDFRenderer(t *testing.T) chromePDFRenderer {
 		withTimeout: func(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 			return ctx, func() {}
 		},
-		navigate: func(location string) chromedp.Action {
-			return chromedp.ActionFunc(func(context.Context) error {
-				return nil
-			})
-		},
-		run: func(ctx context.Context, actions ...chromedp.Action) error {
-			for _, action := range actions {
-				if err := action.Do(ctx); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
+		navigate: fakeNavigate,
+		run:      runFakePDFActions,
 		frameTree: func(context.Context) (*page.FrameTree, error) {
 			return &page.FrameTree{Frame: &cdp.Frame{ID: "root"}}, nil
 		},
-		setDocument: func(ctx context.Context, frameID cdp.FrameID, htmlContent string) error {
-			if frameID == "" || htmlContent == "" {
-				t.Fatal("missing frame ID or HTML content")
-			}
-			return nil
-		},
+		setDocument: fakeSetDocument(t),
 		printToPDF: func(context.Context) ([]byte, error) {
 			return []byte("%PDF"), nil
 		},
 		sleep:             func(time.Duration) {},
 		renderingDeadline: time.Second,
+	}
+}
+
+func fakeNavigate(location string) chromedp.Action {
+	return chromedp.ActionFunc(func(context.Context) error {
+		return nil
+	})
+}
+
+func runFakePDFActions(ctx context.Context, actions ...chromedp.Action) error {
+	for _, action := range actions {
+		if err := action.Do(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fakeSetDocument(t *testing.T) func(context.Context, cdp.FrameID, string) error {
+	return func(ctx context.Context, frameID cdp.FrameID, htmlContent string) error {
+		requireNonEmpty(t, string(frameID), "frame ID")
+		requireNonEmpty(t, htmlContent, "HTML content")
+		return nil
 	}
 }
 
@@ -210,6 +207,45 @@ func assertErrorContains(t *testing.T, err error, want string) {
 	}
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %q; want to contain %q", err, want)
+	}
+}
+
+func requireFrameTree(t *testing.T, renderer chromePDFRenderer, ctx context.Context) {
+	t.Helper()
+	_, err := renderer.frameTree(ctx)
+	requireNoError(t, err)
+}
+
+func requireSetDocument(t *testing.T, renderer chromePDFRenderer, ctx context.Context) {
+	t.Helper()
+	requireNoError(t, renderer.setDocument(ctx, "root", "<html>ok</html>"))
+}
+
+func requireNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requireNonEmpty(t *testing.T, value string, name string) {
+	t.Helper()
+	if value == "" {
+		t.Fatalf("missing %s", name)
+	}
+}
+
+func assertDuration(t *testing.T, got time.Duration, want time.Duration) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("got %s; want %s", got, want)
+	}
+}
+
+func assertString(t *testing.T, got string, want string) {
+	t.Helper()
+	if got != want {
+		t.Fatalf("got %q; want %q", got, want)
 	}
 }
 

@@ -1,38 +1,47 @@
 const salaryLabels: Record<string, string> = {
-    hourly: '💰 Tarifa Por Hora',
-    daily: '💰 Salario Diario',
-    weekly: '💰 Salario Semanal',
-    biweekly: '💰 Salario Quincenal',
-    monthly: '💰 Salario Bruto'
+	hourly: '💰 Tarifa Por Hora',
+	daily: '💰 Salario Diario',
+	weekly: '💰 Salario Semanal',
+	biweekly: '💰 Salario Quincenal',
+	monthly: '💰 Salario Bruto'
+};
+
+const salaryHoursDisplays: Record<string, string> = {
+	hourly: 'block'
+};
+
+const salaryBlockedFrequencies = new Set(['daily', 'hourly']);
+
+const selectedAttributes: Record<string, string> = {
+	true: 'selected',
+	false: ''
+};
+
+const checkedAttributes: Record<string, string> = {
+	true: 'checked',
+	false: ''
 };
 
 export function salaryLabelText(value: string): string {
-    return salaryLabels[value] ?? salaryLabels.monthly;
+	return salaryLabels[value] ?? salaryLabels.monthly;
 }
 
 export function hoursDisplay(value: string): string {
-    if (value === 'hourly') {
-        return 'block';
-    }
-
-    return 'none';
+	return salaryHoursDisplays[value] ?? 'none';
 }
 
 export function isSalaryBlockedFrequency(value: string): boolean {
-    return value === 'daily' || value === 'hourly';
+	return salaryBlockedFrequencies.has(value);
 }
 
 export function selectedAttr(selected: boolean): string {
-    if (selected) return 'selected';
-    return '';
+	return selectedAttributes[String(selected)];
 }
 
 export function checkedAttr(checked: boolean): string {
-    if (checked) return 'checked';
-    return '';
+	return checkedAttributes[String(checked)];
 }
 
 export function displayValue(show: boolean, visibleValue: string, hiddenValue: string): string {
-    if (show) return visibleValue;
-    return hiddenValue;
+	return [hiddenValue, visibleValue][Number(show)];
 }

@@ -2,14 +2,14 @@ import { homeUSDMXNLabel } from './config';
 import { formatNumber } from './money-formatting';
 import { checkedAttr, displayValue, selectedAttr } from './package-rules';
 
-export interface SavedBenefit {
-    name?: string | null;
-    amount?: string | number | null;
-    taxFree?: boolean;
-    currency?: string | null;
-    cadence?: string | null;
-    isPercentage?: boolean;
-}
+export type SavedBenefit = Partial<{
+	name: string | null;
+	amount: string | number | null;
+	taxFree: boolean;
+	currency: string | null;
+	cadence: string | null;
+	isPercentage: boolean;
+}>;
 
 export interface BenefitContext {
     packageIndex: number;
@@ -111,20 +111,20 @@ export function benefitMarkup(
 }
 
 export function benefitFixedControlStyle(isPercentage: boolean): string {
-    if (isPercentage) return 'display: none;';
-    return '';
+	return displayValue(isPercentage, 'display: none;', '');
 }
 
 export function benefitAmountPlaceholder(isPercentage: boolean): string {
-    if (isPercentage) return '10';
-    return '$1,500';
+	return displayValue(isPercentage, '10', '$1,500');
 }
 
 export function benefitBanxicoDisplay(currency: string, isPercentage: boolean): string {
-    if (currency !== 'USD') return 'none';
-    if (isPercentage) return 'none';
-    return 'block';
+	return benefitBanxicoDisplays[`${currency}:${String(isPercentage)}`] ?? 'none';
 }
+
+const benefitBanxicoDisplays: Record<string, string> = {
+	'USD:false': 'block'
+};
 
 export function savedBenefitFromInput(benefitInput: Element): SavedBenefit {
     return {
@@ -142,8 +142,7 @@ function savedBenefitName(savedBenefit: SavedBenefit | null): string {
 }
 
 function savedBenefitAmount(savedBenefit: SavedBenefit | null): string {
-    if (!savedBenefit?.amount) return '';
-    return formatNumber(savedBenefit.amount.toString());
+	return formatNumber((savedBenefit?.amount ?? '').toString());
 }
 
 function savedBenefitTaxFree(savedBenefit: SavedBenefit | null): boolean {
@@ -163,8 +162,5 @@ function benefitIsPercentage(savedBenefit: SavedBenefit | null): boolean {
 }
 
 function savedBenefitAttribute(benefitInput: Element, name: string, fallback: string): string {
-    const value = benefitInput.getAttribute(name);
-    if (value === null) return fallback;
-    if (value === '') return fallback;
-    return value;
+	return benefitInput.getAttribute(name) || fallback;
 }
