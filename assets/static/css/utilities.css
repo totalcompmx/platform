@@ -1,0 +1,105 @@
+.tc-focus-indigo:focus {
+    border-color: #6366f1 !important;
+}
+
+.tc-hover-raise:hover {
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-raise-green-shadow:hover {
+    box-shadow: 0 6px 10px rgba(16, 185, 129, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-raise-indigo-shadow:hover {
+    box-shadow: 0 6px 10px rgba(99, 102, 241, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-raise-indigo-shadow-strong:hover {
+    box-shadow: 0 8px 16px rgba(99, 102, 241, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-raise-green-shadow-strong:hover {
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-raise-red-shadow:hover {
+    box-shadow: 0 6px 12px rgba(239, 68, 68, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-hover-green-link:hover {
+    color: #059669 !important;
+}
+
+.tc-hover-green-link-underline:hover {
+    color: #059669 !important;
+    text-decoration: underline !important;
+}
+
+.tc-hover-indigo-link-underline:hover {
+    color: #4f46e5 !important;
+    text-decoration: underline !important;
+}
+
+.tc-hover-muted-link:hover {
+    color: #94a3b8 !important;
+}
+
+.tc-hover-light-link:hover {
+    color: #f8fafc !important;
+}
+
+.tc-hover-light-link-underline:hover {
+    color: #f8fafc !important;
+    text-decoration: underline !important;
+}
+
+.tc-danger-button:hover {
+    background: #dc2626 !important;
+}
+
+.tc-warning-button:hover {
+    background: #d97706 !important;
+}
+
+.api-key-button:hover {
+    background: #d97706 !important;
+}
+
+.tc-warning-outline-button:hover {
+    background: #92400e !important;
+    color: white !important;
+}
+
+.tc-indigo-button:hover {
+    background: #4f46e5 !important;
+}
+
+.tc-neutral-button:hover {
+    background: #cbd5e1 !important;
+}
+
+.tc-slate-button:hover {
+    background: #475569 !important;
+}
+
+.cookie-accept-button:hover {
+    box-shadow: 0 6px 8px rgba(16, 185, 129, 0.4) !important;
+    transform: translateY(-2px) !important;
+}
+
+.tc-add-comparison-button:hover {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+    border-color: #2563eb !important;
+    border-style: solid !important;
+    color: #2563eb !important;
+}
+
+.tc-remove-comparison-button:hover {
+    background: #dc2626 !important;
+    transform: scale(1.1) !important;
+}

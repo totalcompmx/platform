@@ -1,0 +1,28 @@
+main form > div {
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+}
+
+input {
+    padding: 0.5rem;
+}
+
+button {
+    cursor: pointer;
+    display: inline-block;
+    font-family: inherit;
+    line-height: normal;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.error {
+    color: red;
+}
+
+span.error {
+    display: block;
+}

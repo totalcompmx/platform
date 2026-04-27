@@ -1,0 +1,62 @@
+.tc-cookie-banner {
+    background: var(--tc-color-ink);
+    border-top: 3px solid var(--tc-color-accent);
+    bottom: 0;
+    box-shadow: var(--tc-shadow-cookie);
+    left: 0;
+    padding: 1.25rem 2rem;
+    position: fixed;
+    right: 0;
+    z-index: 9999;
+}
+
+.tc-cookie-banner__inner {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: space-between;
+    margin: 0 auto;
+    max-width: var(--tc-page-max);
+}
+
+.tc-cookie-banner__copy {
+    flex: 1;
+    min-width: 280px;
+}
+
+.tc-cookie-banner__text {
+    color: var(--tc-color-white);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.tc-cookie-banner__link {
+    color: var(--tc-color-accent);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.tc-cookie-banner__button {
+    background: linear-gradient(135deg, var(--tc-color-accent) 0%, var(--tc-color-accent-strong) 100%);
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+    color: var(--tc-color-white);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .tc-cookie-banner {
+        padding: 1rem;
+    }
+
+    .tc-cookie-banner__button {
+        width: 100%;
+    }
+}

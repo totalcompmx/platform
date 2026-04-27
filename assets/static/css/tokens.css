@@ -1,0 +1,16 @@
+/* Design tokens shared by the full server-rendered UI. */
+:root {
+    --tc-color-ink: #0f172a;
+    --tc-color-ink-soft: #1e293b;
+    --tc-color-muted: #64748b;
+    --tc-color-muted-light: #94a3b8;
+    --tc-color-surface: #f8fafc;
+    --tc-color-white: #ffffff;
+    --tc-color-accent: #10b981;
+    --tc-color-accent-strong: #059669;
+    --tc-color-warning: #fbbf24;
+    --tc-color-border-dark: #1e293b;
+    --tc-shadow-header: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --tc-shadow-cookie: 0 -4px 12px rgba(0, 0, 0, 0.2);
+    --tc-page-max: 1200px;
+}

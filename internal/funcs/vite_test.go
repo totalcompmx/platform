@@ -106,10 +106,10 @@ func TestViteManifestTagsHandlesDuplicateAndMissingImports(t *testing.T) {
 }
 
 func TestViteFallbackTags(t *testing.T) {
-	tags := viteFallbackTags([]string{"/static/css/main.css", "/static/js/legacy.js"})
+	tags := viteFallbackTags([]string{"/static/css/base.css", "/static/js/legacy.js"})
 
 	assert.Equal(t, strings.Join(tags, "\n"), strings.Join([]string{
-		`<link rel="stylesheet" href="/static/css/main.css">`,
+		`<link rel="stylesheet" href="/static/css/base.css">`,
 		`<script src="/static/js/legacy.js" defer></script>`,
 	}, "\n"))
 }

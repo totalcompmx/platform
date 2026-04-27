@@ -44,6 +44,29 @@ func TestPageWithHeaders(t *testing.T) {
 	})
 }
 
+func TestPageStylesheetStack(t *testing.T) {
+	w := httptest.NewRecorder()
+	data := map[string]any{"Version": "test-version"}
+
+	err := Page(w, http.StatusOK, data, "pages/privacy.tmpl")
+
+	assert.Nil(t, err)
+	body := w.Body.String()
+	assert.True(t, !strings.Contains(body, "main.css"))
+	for _, path := range []string{
+		"/static/css/tokens.css?version=test-version",
+		"/static/css/base.css?version=test-version",
+		"/static/css/layout.css?version=test-version",
+		"/static/css/forms.css?version=test-version",
+		"/static/css/components/header.css?version=test-version",
+		"/static/css/components/footer.css?version=test-version",
+		"/static/css/components/cookie-banner.css?version=test-version",
+		"/static/css/utilities.css?version=test-version",
+	} {
+		assert.True(t, strings.Contains(body, path))
+	}
+}
+
 func TestHomePageScriptConfig(t *testing.T) {
 	w := httptest.NewRecorder()
 	data := map[string]any{

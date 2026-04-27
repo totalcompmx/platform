@@ -11,7 +11,7 @@ func TestRoutes(t *testing.T) {
 	t.Run("Serves CSS file with appropriate headers and content", func(t *testing.T) {
 		app := newTestApplication(t)
 
-		req := newTestRequest(t, http.MethodGet, "/static/css/main.css")
+		req := newTestRequest(t, http.MethodGet, "/static/css/tokens.css")
 
 		res := send(t, req, app.routes())
 		assert.Equal(t, res.StatusCode, http.StatusOK)

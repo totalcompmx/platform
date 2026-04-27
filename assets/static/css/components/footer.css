@@ -1,0 +1,128 @@
+.tc-site-footer {
+    background: var(--tc-color-ink);
+    border-top: 3px solid var(--tc-color-accent);
+    color: var(--tc-color-muted-light);
+    margin-top: 3rem;
+    padding: 3rem 2rem;
+    width: 100%;
+}
+
+.tc-site-footer__inner {
+    margin: 0 auto;
+    max-width: var(--tc-page-max);
+    width: 100%;
+}
+
+.tc-site-footer__top {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 2rem;
+}
+
+.tc-site-footer__brand-title {
+    color: var(--tc-color-white);
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+}
+
+.tc-site-footer__summary {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.tc-site-footer__meta {
+    font-size: 0.75rem;
+    text-align: right;
+}
+
+.tc-site-footer__meta p {
+    margin: 0;
+}
+
+.tc-site-footer__meta .tc-site-footer__meta-muted {
+    color: var(--tc-color-muted);
+    margin-top: 0.5rem;
+}
+
+.tc-site-footer__legal {
+    border-top: 1px solid var(--tc-color-border-dark);
+    color: var(--tc-color-muted);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    padding-top: 1.5rem;
+    text-align: justify;
+}
+
+.tc-site-footer__legal p {
+    margin: 0 0 0.75rem;
+}
+
+.tc-site-footer__legal p:last-child {
+    margin-bottom: 0;
+}
+
+.tc-site-footer__legal-warning {
+    color: var(--tc-color-warning);
+}
+
+.tc-site-footer__legal-emphasis {
+    color: var(--tc-color-muted-light);
+}
+
+.tc-site-footer__privacy-label {
+    color: var(--tc-color-accent);
+}
+
+.tc-site-footer__links {
+    border-top: 1px solid var(--tc-color-border-dark);
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    text-align: center;
+}
+
+.tc-site-footer__link-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.tc-site-footer__link {
+    color: var(--tc-color-accent);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.tc-site-footer__separator {
+    color: #334155;
+}
+
+.tc-site-footer__copyright {
+    color: #475569;
+    font-size: 0.7rem;
+}
+
+@media (max-width: 720px) {
+    .tc-site-footer {
+        padding: 2rem 1rem;
+    }
+
+    .tc-site-footer__top {
+        grid-template-columns: 1fr;
+    }
+
+    .tc-site-footer__meta,
+    .tc-site-footer__legal {
+        text-align: left;
+    }
+
+    .tc-site-footer__separator {
+        display: none;
+    }
+}

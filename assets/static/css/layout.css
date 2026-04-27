@@ -1,0 +1,12 @@
+.tc-app-shell {
+    background: var(--tc-color-surface);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    width: 100%;
+}
+
+.tc-main {
+    flex: 1;
+    width: 100%;
+}
