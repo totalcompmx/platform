@@ -1,11 +1,11 @@
 {{define "partial:footer"}}
-<footer style="width: 100%; background: #0f172a; color: #94a3b8; padding: 3rem 2rem; margin-top: 3rem; box-sizing: border-box; border-top: 3px solid #10b981;">
-    <div style="max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
+<footer class="tc-site-footer">
+    <div class="tc-site-footer__inner">
         <!-- Header Section -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+        <div class="tc-site-footer__top">
             <div>
-                <h3 style="color: white; font-weight: 700; font-size: 1.125rem; margin: 0 0 0.5rem 0;">💰 TotalComp MX</h3>
-                <p style="margin: 0; font-size: 0.875rem; line-height: 1.6;">
+                <h3 class="tc-site-footer__brand-title">💰 TotalComp MX</h3>
+                <p class="tc-site-footer__summary">
                     Comparador de compensación total para México.<br>
                     {{with .FiscalYear}}
                     Actualizada con las tablas ISR {{.Year}}, UMA (${{printf "%.2f" .UMAMonthly}}) y SMG (${{printf "%.2f" .SMGGeneral}}).
@@ -14,51 +14,47 @@
                     {{end}}
                 </p>
             </div>
-            <div style="text-align: right; font-size: 0.75rem;">
-                <p style="margin: 0;">Desarrollado con Go y HTML5.</p>
-                <p style="margin: 0.5rem 0 0 0; color: #64748b;">Compara ofertas laborales • Sueldos y Salarios vs RESICO</p>
+            <div class="tc-site-footer__meta">
+                <p>Desarrollado con Go y HTML5.</p>
+                <p class="tc-site-footer__meta-muted">Compara ofertas laborales • Sueldos y Salarios vs RESICO</p>
             </div>
         </div>
 
         <!-- Legal Disclaimer -->
-        <div style="border-top: 1px solid: #1e293b; padding-top: 1.5rem; font-size: 0.75rem; text-align: justify; color: #64748b; line-height: 1.7;">
-            <p style="margin: 0 0 0.75rem 0;">
-                <strong style="color: #fbbf24;">⚠️ Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. 
+        <div class="tc-site-footer__legal">
+            <p>
+                <strong class="tc-site-footer__legal-warning">⚠️ Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. 
                 {{with .FiscalYear}}
                 Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF {{.Year}})
                 {{else}}
                 Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF vigente)
                 {{end}}
-                pero <strong style="color: #94a3b8;">no constituyen asesoría fiscal, contable o legal profesional</strong>.
+                pero <strong class="tc-site-footer__legal-emphasis">no constituyen asesoría fiscal, contable o legal profesional</strong>.
             </p>
-            <p style="margin: 0 0 0.75rem 0;">
+            <p>
                 El desarrollador no se hace responsable por discrepancias con los cálculos oficiales del SAT o el IMSS, 
                 ni por la toma de decisiones financieras basadas en estos resultados. Se recomienda consultar a un 
                 contador público certificado para determinaciones fiscales definitivas.
             </p>
-            <p style="margin: 0;">
-                <strong style="color: #10b981;">🔒 Privacidad:</strong> No recabamos, almacenamos ni compartimos datos personales. 
+            <p>
+                <strong class="tc-site-footer__privacy-label">🔒 Privacidad:</strong> No recabamos, almacenamos ni compartimos datos personales. 
                 Todos los cálculos se realizan de forma anónima y los datos ingresados se eliminan al cerrar la sesión.
             </p>
         </div>
 
         <!-- Legal Links -->
-        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #1e293b;">
-            <div style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
-                <a href="/privacy" class="tc-hover-green-link" style="color: #10b981; text-decoration: none; font-size: 0.8rem; font-weight: 500; transition: color 0.2s;">
+        <div class="tc-site-footer__links">
+            <div class="tc-site-footer__link-list">
+                <a href="/privacy" class="tc-site-footer__link tc-hover-green-link">
                     🔒 Aviso de Privacidad
                 </a>
-                <span style="color: #334155;">|</span>
-                <a href="/terms" class="tc-hover-green-link" style="color: #10b981; text-decoration: none; font-size: 0.8rem; font-weight: 500; transition: color 0.2s;">
+                <span class="tc-site-footer__separator">|</span>
+                <a href="/terms" class="tc-site-footer__link tc-hover-green-link">
                     📋 Términos y Condiciones
                 </a>
             </div>
-            <div style="font-size: 0.7rem; color: #475569;">
-                {{with .FiscalYear}}
-                &copy; {{.Year}} TotalComp MX. Todos los derechos reservados. • Versión {{.Year}} (Beta)
-                {{else}}
-                &copy; TotalComp MX. Todos los derechos reservados. • Versión Beta
-                {{end}}
+            <div class="tc-site-footer__copyright">
+                &copy; {{formatTime "2006" (now)}} TotalComp MX. Todos los derechos reservados. • Versión {{formatTime "2006" (now)}} (Beta)
             </div>
         </div>
     </div>

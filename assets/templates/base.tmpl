@@ -1,12 +1,12 @@
 {{define "base"}}
 <!doctype html>
-<html lang='es' style="margin: 0; padding: 0;">
+<html lang='es'>
     <head>
         <meta charset='utf-8'>
-        <title>TotalComp MX | Calculadora de Compensación Total México 2025 (ISR, IMSS, RESICO)</title>
-        <meta name="description" content="Compara paquetes de compensación en México. Calcula tu sueldo neto real con ISR, IMSS, Aguinaldo, Vales y RESICO. Herramienta actualizada 2025 con tablas UMA y Subsidio al Empleo.">
+        <title>TotalComp MX | Calculadora de Compensación Total México {{formatTime "2006" (now)}} (ISR, IMSS, RESICO)</title>
+        <meta name="description" content="Compara paquetes de compensación en México. Calcula tu sueldo neto real con ISR, IMSS, Aguinaldo, Vales y RESICO. Herramienta actualizada {{formatTime "2006" (now)}} con tablas UMA y Subsidio al Empleo.">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="keywords" content="calculadora nomina mexico, sueldos y salarios, resico, isr 2025, imss, aguinaldo, compensacion total, salario neto">
+        <meta name="keywords" content="calculadora nomina mexico, sueldos y salarios, resico, isr {{formatTime "2006" (now)}}, imss, aguinaldo, compensacion total, salario neto">
         <meta name="author" content="TotalComp MX">
         <link rel="canonical" href="https://totalcomp.mx">
         
@@ -18,8 +18,8 @@
         <meta name="theme-color" content="#0F172A">
         
         <!-- Open Graph / Social Media -->
-        <meta property="og:title" content="TotalComp MX - Comparador de Compensación México 2025">
-        <meta property="og:description" content="Compara ofertas laborales y calcula tu compensación neta real. ISR, IMSS, Aguinaldo, RESICO vs Sueldos y Salarios. Actualizado 2025.">
+        <meta property="og:title" content="TotalComp MX - Comparador de Compensación México {{formatTime "2006" (now)}}">
+        <meta property="og:description" content="Compara ofertas laborales y calcula tu compensación neta real. ISR, IMSS, Aguinaldo, RESICO vs Sueldos y Salarios. Actualizado {{formatTime "2006" (now)}}.">
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://totalcomp.mx">
         <meta property="og:image" content="https://totalcomp.mx/static/og-image.png">
@@ -68,47 +68,44 @@
         
         <link rel='stylesheet' href='/static/css/main.css?version={{.Version}}'>
         
-        <style>
-            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        </style>
     </head>
-    <body style="margin: 0; padding: 0; width: 100%; min-height: 100vh; display: flex; flex-direction: column; background: #f8fafc; box-sizing: border-box;">
-        <header style="width: 100%; background: #0f172a; border-bottom: 3px solid #10b981; padding: 1rem 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box;">
-            <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="font-size: 2rem;">💰</div>
+    <body class="tc-app-shell">
+        <header class="tc-site-header">
+            <div class="tc-site-header__inner">
+                <div class="tc-brand">
+                    <div class="tc-brand__mark">💰</div>
                     <div>
-                        <h1 style="margin: 0; font-size: 1.75rem; color: white; font-weight: 700; letter-spacing: -0.5px;">
-                            <a href="/" style="text-decoration: none; color: white;">TotalComp MX</a>
+                        <h1 class="tc-brand__title">
+                            <a href="/" class="tc-brand__link">TotalComp MX</a>
                         </h1>
-                        <p style="margin: 0; font-size: 0.75rem; color: #10b981; font-weight: 500;">Compara paquetes de compensación en México, decide mejor.</p>
+                        <p class="tc-brand__tagline">Compara paquetes de compensación en México, decide mejor.</p>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 1.5rem;">
-                    <a href="/developers" class="tc-hover-green-link" style="color: #10b981; text-decoration: none; font-weight: 600; font-size: 0.875rem; transition: color 0.2s;">
+                <div class="tc-site-header__actions">
+                    <a href="/developers" class="tc-header-api-link tc-hover-green-link">
                         &lt;/&gt; API
                     </a>
-                    <div style="background: #1e293b; padding: 0.375rem 0.75rem; border-radius: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: 500;">
-                        Versión {{.Year}} (Beta)
+                    <div class="tc-version-badge">
+                        Versión {{formatTime "2006" (now)}} (Beta)
                     </div>
                 </div>
             </div>
         </header>
-        <main style="flex: 1; width: 100%; box-sizing: border-box;">
+        <main class="tc-main">
             {{template "page:main" .}}
         </main>
         {{template "partial:footer" .}}
         
         <!-- Cookie Consent Banner -->
-        <div id="cookieBanner" data-cookie-banner hidden style="position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; border-top: 3px solid #10b981; padding: 1.25rem 2rem; box-shadow: 0 -4px 12px rgba(0,0,0,0.2); z-index: 9999; box-sizing: border-box;">
-            <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 280px;">
-                    <p style="margin: 0; color: white; font-size: 0.9rem; line-height: 1.5;">
+        <div id="cookieBanner" data-cookie-banner hidden class="tc-cookie-banner">
+            <div class="tc-cookie-banner__inner">
+                <div class="tc-cookie-banner__copy">
+                    <p class="tc-cookie-banner__text">
                         🍪 Usamos cookies para mejorar tu experiencia y mantener tu sesión activa. Al continuar, aceptas nuestro 
-                        <a href="/privacy" style="color: #10b981; text-decoration: underline; font-weight: 600;">Aviso de Privacidad</a>.
+                        <a href="/privacy" class="tc-cookie-banner__link">Aviso de Privacidad</a>.
                     </p>
                 </div>
-                <button type="button" data-action="accept-cookies" class="cookie-accept-button" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap;">
+                <button type="button" data-action="accept-cookies" class="tc-cookie-banner__button cookie-accept-button">
                     Aceptar
                 </button>
             </div>
