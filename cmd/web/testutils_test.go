@@ -151,15 +151,6 @@ func (s *fakeStore) Close() error {
 	return nil
 }
 
-func (s *fakeStore) MonitorConnectionPool(ctx context.Context) <-chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		<-ctx.Done()
-		close(done)
-	}()
-	return done
-}
-
 func (s *fakeStore) GetActiveFiscalYear() (database.FiscalYear, bool, error) {
 	if err := s.errors["GetActiveFiscalYear"]; err != nil {
 		return database.FiscalYear{}, false, err

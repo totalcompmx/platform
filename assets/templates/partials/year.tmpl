@@ -1,0 +1,1 @@
+{{define "partial:fiscal-year"}}{{if and .FiscalYear (gt .FiscalYear.Year 0)}}{{.FiscalYear.Year}}{{else}}{{formatTime "2006" (now)}}{{end}}{{end}}

@@ -1,4 +1,4 @@
-{{define "page:title"}}TotalComp MX | Comparador de Compensación México 2025{{end}}
+{{define "page:title"}}TotalComp MX | Comparador de Compensación México {{template "partial:fiscal-year" .}}{{end}}
 
 {{define "page:meta"}}
 <meta name="page" content="home">
@@ -54,7 +54,7 @@
         Ideal para Ingenieros, Freelancers y Contractors.
     </p>
     <p style="font-size: 0.9rem; color: #64748b; margin: 0;">
-        Compara ofertas laborales lado a lado • Sueldos y Salarios vs RESICO • ISR 2025 • IMSS • UMA • Prestaciones
+        Compara ofertas laborales lado a lado • Sueldos y Salarios vs RESICO • ISR {{template "partial:fiscal-year" .}} • IMSS • UMA • Prestaciones
     </p>
 </div>
 {{end}}

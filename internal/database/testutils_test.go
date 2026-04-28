@@ -5,6 +5,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"testing"
@@ -54,7 +55,12 @@ func newTestSchemaName() string {
 }
 
 func testSchemaDSN(dsn, schemaName string) string {
-	return fmt.Sprintf("%s?search_path=%s", dsn, schemaName)
+	separator := "?"
+	if strings.Contains(dsn, "?") {
+		separator = "&"
+	}
+
+	return fmt.Sprintf("%s%ssearch_path=%s,public", dsn, separator, schemaName)
 }
 
 func openTestDB(t *testing.T, dsn string) *DB {

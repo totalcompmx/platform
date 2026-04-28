@@ -71,7 +71,7 @@ func TestHomePageScriptConfig(t *testing.T) {
 	w := httptest.NewRecorder()
 	data := map[string]any{
 		"CSRFToken":  "csrf-token",
-		"FiscalYear": database.FiscalYear{USDMXNRate: 19.1234},
+		"FiscalYear": database.FiscalYear{Year: 2026, USDMXNRate: 19.1234},
 	}
 
 	err := Page(w, http.StatusOK, data, "pages/home.tmpl")
@@ -82,6 +82,7 @@ func TestHomePageScriptConfig(t *testing.T) {
 	assert.True(t, strings.Contains(body, `<script type="application/json" id="totalcomp-home-config">`))
 	assert.True(t, strings.Contains(body, `"csrfToken": "csrf-token"`))
 	assert.True(t, strings.Contains(body, `"usdMxnRate": "19.1234"`))
+	assert.True(t, strings.Contains(body, "ISR 2026"))
 }
 
 func TestNamedTemplateWithHeaders(t *testing.T) {

@@ -24,7 +24,7 @@ var newPDFRenderer = newChromePDFRenderer
 
 // GenerateComparisonReport generates a PDF by rendering an HTML template via Chrome
 func GenerateComparisonReport(packages []PackageResult, fiscalYear database.FiscalYear) ([]byte, error) {
-	htmlContent, err := renderComparisonHTML(packages)
+	htmlContent, err := renderComparisonHTML(packages, fiscalYear)
 	if err != nil {
 		return nil, err
 	}

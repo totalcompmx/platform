@@ -89,13 +89,7 @@ func (c *INEGIClient) fetchUMAResponse(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.logger.Info("fetching uma from inegi")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch from inegi: %w", err)
-	}
-	defer resp.Body.Close()
-	return readOKResponse(resp, "inegi")
+	return fetchClientResponse(c.httpClient, c.logger, req, "fetching uma from inegi", "inegi")
 }
 
 func (c *INEGIClient) newUMARequest(ctx context.Context) (*http.Request, error) {

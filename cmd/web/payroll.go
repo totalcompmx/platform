@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/jcroyoaun/totalcompmx/internal/database"
-	"github.com/jcroyoaun/totalcompmx/internal/metrics"
 )
 
 // calculateRESICO performs RESICO regime calculation (flat rate, no IMSS, no subsidio)
@@ -17,9 +15,6 @@ func (app *application) calculateRESICO(
 	exchangeRate float64,
 	fiscalYear database.FiscalYear,
 ) (database.SalaryCalculation, error) {
-	start := time.Now()
-	defer recordCalculationMetric(start)
-
 	result := database.SalaryCalculation{
 		GrossSalary:        monthlyIncome,
 		UnpaidVacationDays: unpaidVacationDays,
@@ -42,12 +37,6 @@ func (app *application) calculateRESICO(
 type benefitTotals struct {
 	MonthlyNet float64
 	AnnualNet  float64
-}
-
-func recordCalculationMetric(start time.Time) {
-	duration := time.Since(start).Seconds()
-	metrics.TotalCompCalculations.Inc()
-	metrics.CalculationDuration.Observe(duration)
 }
 
 func (app *application) resicoBracket(fiscalYearID int, monthlyIncome float64) (database.RESICOBracket, error) {
@@ -131,9 +120,6 @@ func (app *application) calculateSalaryWithBenefits(
 	exchangeRate float64,
 	fiscalYear database.FiscalYear,
 ) (database.SalaryCalculation, error) {
-	start := time.Now()
-	defer recordCalculationMetric(start)
-
 	input := salaryBenefitsInput{
 		GrossMonthlySalary:  grossMonthlySalary,
 		HasAguinaldo:        hasAguinaldo,
@@ -422,24 +408,24 @@ func calculateTaxArt174(grossMonthlySalary, annualBonusAmount float64, brackets 
 
 // calculateIMSSWorker calculates the worker's IMSS contributions
 func (app *application) calculateIMSSWorker(grossSalary float64, fiscalYear database.FiscalYear) (float64, error) {
-	concepts, err := app.db.GetIMSSConcepts()
-	if err != nil {
-		return 0, err
-	}
-	return app.sumIMSSContributions(grossSalary, fiscalYear, concepts, app.workerIMSSContribution)
+	return app.calculateIMSSContributions(grossSalary, fiscalYear, app.workerIMSSContribution)
 }
 
 // calculateIMSSEmployer calculates the employer's IMSS contributions
 // This is NON-LIQUID compensation (doesn't go to employee's pocket)
 func (app *application) calculateIMSSEmployer(grossSalary float64, fiscalYear database.FiscalYear) (float64, error) {
+	return app.calculateIMSSContributions(grossSalary, fiscalYear, app.employerIMSSContribution)
+}
+
+type imssContributionFunc func(concept database.IMSSConcept, dailySalary float64, monthlyBase float64, fiscalYear database.FiscalYear) (float64, error)
+
+func (app *application) calculateIMSSContributions(grossSalary float64, fiscalYear database.FiscalYear, contributionFor imssContributionFunc) (float64, error) {
 	concepts, err := app.db.GetIMSSConcepts()
 	if err != nil {
 		return 0, err
 	}
-	return app.sumIMSSContributions(grossSalary, fiscalYear, concepts, app.employerIMSSContribution)
+	return app.sumIMSSContributions(grossSalary, fiscalYear, concepts, contributionFor)
 }
-
-type imssContributionFunc func(concept database.IMSSConcept, dailySalary float64, monthlyBase float64, fiscalYear database.FiscalYear) (float64, error)
 
 func (app *application) sumIMSSContributions(grossSalary float64, fiscalYear database.FiscalYear, concepts []database.IMSSConcept, contributionFor imssContributionFunc) (float64, error) {
 	dailySalary := grossSalary / 30.4 // Average days in a month

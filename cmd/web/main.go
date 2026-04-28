@@ -151,7 +151,6 @@ type application struct {
 type runDatabase interface {
 	dataStore
 	Close() error
-	MonitorConnectionPool(context.Context) <-chan struct{}
 }
 
 func run(logger *slog.Logger, cfg config, task string) error {
@@ -160,13 +159,6 @@ func run(logger *slog.Logger, cfg config, task string) error {
 		return err
 	}
 	defer db.Close()
-
-	monitorCtx, stopMonitoring := context.WithCancel(context.Background())
-	monitorDone := db.MonitorConnectionPool(monitorCtx)
-	defer func() {
-		stopMonitoring()
-		<-monitorDone
-	}()
 
 	app := buildApplication(logger, cfg, db)
 	return app.runTask(task)

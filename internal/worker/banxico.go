@@ -82,13 +82,7 @@ func (c *BanxicoClient) fetchExchangeRateResponse(ctx context.Context) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
-	c.logger.Info("fetching exchange rate from banxico")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch from banxico: %w", err)
-	}
-	defer resp.Body.Close()
-	return readOKResponse(resp, "banxico")
+	return fetchClientResponse(c.httpClient, c.logger, req, "fetching exchange rate from banxico", "banxico")
 }
 
 func (c *BanxicoClient) newExchangeRateRequest(ctx context.Context) (*http.Request, error) {

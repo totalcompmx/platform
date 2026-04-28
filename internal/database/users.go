@@ -39,35 +39,11 @@ func (db *DB) InsertUser(email, hashedPassword string) (int, error) {
 }
 
 func (db *DB) GetUser(id int) (User, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	var user User
-
-	query := `SELECT * FROM users WHERE id = $1`
-
-	err := db.GetContext(ctx, &user, query, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, false, nil
-	}
-
-	return user, true, err
+	return db.userByQuery(`SELECT * FROM users WHERE id = $1`, id)
 }
 
 func (db *DB) GetUserByEmail(email string) (User, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	var user User
-
-	query := `SELECT * FROM users WHERE LOWER(email) = LOWER($1)`
-
-	err := db.GetContext(ctx, &user, query, email)
-	if errors.Is(err, sql.ErrNoRows) {
-		return User{}, false, nil
-	}
-
-	return user, true, err
+	return db.userByQuery(`SELECT * FROM users WHERE LOWER(email) = LOWER($1)`, email)
 }
 
 func (db *DB) UpdateUserHashedPassword(id int, hashedPassword string) error {
@@ -96,14 +72,16 @@ func (db *DB) UpdateUserAPIKey(id int, apiKey string) error {
 
 // GetUserByAPIKey retrieves a user by their API key
 func (db *DB) GetUserByAPIKey(apiKey string) (User, bool, error) {
+	return db.userByQuery(`SELECT * FROM users WHERE api_key = $1`, apiKey)
+}
+
+func (db *DB) userByQuery(query string, args ...any) (User, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	var user User
 
-	query := `SELECT * FROM users WHERE api_key = $1`
-
-	err := db.GetContext(ctx, &user, query, apiKey)
+	err := db.GetContext(ctx, &user, query, args...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return User{}, false, nil
 	}
@@ -194,28 +172,17 @@ func (db *DB) VerifyUserEmail(userID int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	// Start transaction
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return db.withTx(ctx, func(tx *sql.Tx) error {
+		query1 := `UPDATE users SET email_verified = TRUE, email_verified_at = $1 WHERE id = $2`
+		_, err := tx.ExecContext(ctx, query1, time.Now(), userID)
+		if err != nil {
+			return err
+		}
 
-	// Mark email as verified
-	query1 := `UPDATE users SET email_verified = TRUE, email_verified_at = $1 WHERE id = $2`
-	_, err = tx.ExecContext(ctx, query1, time.Now(), userID)
-	if err != nil {
+		query2 := `DELETE FROM email_verifications WHERE user_id = $1`
+		_, err = tx.ExecContext(ctx, query2, userID)
 		return err
-	}
-
-	// Delete verification token
-	query2 := `DELETE FROM email_verifications WHERE user_id = $1`
-	_, err = tx.ExecContext(ctx, query2, userID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	})
 }
 
 // DeleteEmailVerificationTokensForUser deletes all verification tokens for a user

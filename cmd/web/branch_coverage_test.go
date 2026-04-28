@@ -13,7 +13,6 @@ import (
 	"github.com/jcroyoaun/totalcompmx/internal/assert"
 	"github.com/jcroyoaun/totalcompmx/internal/database"
 	"github.com/jcroyoaun/totalcompmx/internal/pdf"
-	"github.com/jcroyoaun/totalcompmx/internal/response"
 	"github.com/jcroyoaun/totalcompmx/internal/smtp"
 
 	"github.com/alexedwards/scs/v2"
@@ -377,6 +376,10 @@ func TestHandlerBranchCoverage(t *testing.T) {
 		app.salaryCalculatorPost(httptest.NewRecorder(), malformedFormRequest(t, http.MethodPost, "/calculator"), &calculatorForm{})
 
 		app = newTestApplication(t)
+		app.db.(*fakeStore).errors["GetActiveFiscalYear"] = errors.New("fiscal failed")
+		app.renderCalculatorForm(httptest.NewRecorder(), loadedRequest(t, app, http.MethodGet, "/calculator"), http.StatusOK, &calculatorForm{})
+
+		app = newTestApplication(t)
 		app.db.(*fakeStore).activeFiscalFound = false
 		app.salaryCalculatorPost(httptest.NewRecorder(), loadedCalculatorRequest(t, app, 50000, 1), &calculatorForm{})
 
@@ -424,12 +427,12 @@ func TestHandlerBranchCoverage(t *testing.T) {
 
 		app = newTestApplication(t)
 		app.db.(*fakeStore).errors["GetActiveFiscalYear"] = errors.New("fiscal failed")
-		_, ok := app.activeFiscalYearForPDF(httptest.NewRecorder(), loadedRequest(t, app, http.MethodGet, "/export-pdf"))
+		_, ok := app.pdfFiscalYear(httptest.NewRecorder(), loadedRequest(t, app, http.MethodGet, "/export-pdf"))
 		assert.False(t, ok)
 
 		app = newTestApplication(t)
 		app.db.(*fakeStore).activeFiscalFound = false
-		_, ok = app.activeFiscalYearForPDF(httptest.NewRecorder(), loadedRequest(t, app, http.MethodGet, "/export-pdf"))
+		_, ok = app.pdfFiscalYear(httptest.NewRecorder(), loadedRequest(t, app, http.MethodGet, "/export-pdf"))
 		assert.False(t, ok)
 
 		app = newTestApplication(t)
@@ -453,7 +456,8 @@ func TestHandlerBranchCoverage(t *testing.T) {
 		assert.False(t, ok)
 
 		assert.Equal(t, pdfPackageInput(nil, 1), pdf.PackageInput{})
-		app.writePDFResponse(errorResponseWriter{header: http.Header{}}, []byte("%PDF"))
+		app.writePDFResponse(errorResponseWriter{header: http.Header{}}, []byte("%PDF"), database.FiscalYear{})
+		app.writeStaticContent(errorResponseWriter{header: http.Header{}}, "text/plain", "body")
 	})
 }
 
@@ -529,7 +533,7 @@ func TestMiddlewareBranchCoverage(t *testing.T) {
 
 		req := newTestRequest(t, http.MethodGet, "/api")
 		app.writeAPIRateLimitError(httptest.NewRecorder(), req, 10)
-		app.writeAPIError(httptest.NewRecorder(), req, http.StatusUnauthorized, "nope")
+		app.writeJSONError(httptest.NewRecorder(), req, http.StatusUnauthorized, "nope")
 	})
 
 	t.Run("API usage logging errors", func(t *testing.T) {
@@ -541,14 +545,6 @@ func TestMiddlewareBranchCoverage(t *testing.T) {
 		app.wg.Wait()
 	})
 
-	t.Run("prometheus and metrics writer branches", func(t *testing.T) {
-		app := newTestApplication(t)
-		res := send(t, newTestRequest(t, http.MethodGet, "/metrics"), app.prometheusMiddleware(okHandler()))
-		assert.Equal(t, res.StatusCode, http.StatusOK)
-
-		mw := response.NewMetricsResponseWriter(httptest.NewRecorder())
-		assert.Equal(t, metricsResponseWriter(mw), mw)
-	})
 }
 
 func TestPayrollBranchCoverage(t *testing.T) {

@@ -39,7 +39,7 @@
                     <li>Comparar paquetes de compensación laboral bajo diferentes regímenes fiscales (Sueldos y Salarios, RESICO).</li>
                     <li>Visualizar el desglose de prestaciones, deducciones y neto mensual/anual.</li>
                 </ul>
-                <p style="margin-top: 1rem;">El servicio se ofrece de forma <strong>gratuita</strong> y está actualizado conforme a la legislación fiscal mexicana vigente para el ejercicio <strong>2025</strong> (Ley del ISR, Ley del Seguro Social, Resolución Miscelánea Fiscal).</p>
+                <p style="margin-top: 1rem;">El servicio se ofrece de forma <strong>gratuita</strong> y está actualizado conforme a la legislación fiscal mexicana vigente para el ejercicio <strong>{{template "partial:fiscal-year" .}}</strong> (Ley del ISR, Ley del Seguro Social, Resolución Miscelánea Fiscal).</p>
             </section>
 
             <!-- Disclaimer Crítico -->
@@ -95,7 +95,7 @@
                 </h2>
                 <p>Aunque nos esforzamos por mantener la información actualizada y precisa, TotalComp MX:</p>
                 <ul style="margin: 1rem 0; padding-left: 1.5rem;">
-                    <li>Utiliza las <strong>tablas oficiales de ISR, IMSS, UMA y SMG vigentes para 2025</strong>.</li>
+                    <li>Utiliza las <strong>tablas oficiales de ISR, IMSS, UMA y SMG vigentes para {{template "partial:fiscal-year" .}}</strong>.</li>
                     <li>Implementa las reglas generales de la Ley del ISR, Ley del Seguro Social, y la Resolución Miscelánea Fiscal.</li>
                     <li>Puede no contemplar <strong>casos especiales, exenciones particulares, o interpretaciones jurídicas avanzadas</strong> que requieren análisis profesional.</li>
                 </ul>
@@ -183,4 +183,3 @@
     </div>
 </div>
 {{end}}
-

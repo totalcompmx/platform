@@ -10,7 +10,7 @@
                 La API de Nómina<br>para Developers en México 🇲🇽
             </h1>
             <p style="color: #94a3b8; font-size: 1.25rem; margin: 0 0 2rem 0; line-height: 1.6;">
-                Simulador fiscal actualizado para 2025. Integra cálculos de ISR, IMSS<br>y compensación total en tu SaaS, ERP o app en minutos.
+                Simulador fiscal actualizado para {{template "partial:fiscal-year" .}}. Integra cálculos de ISR, IMSS<br>y compensación total en tu SaaS, ERP o app en minutos.
             </p>
             {{if .AuthenticatedUser}}
             <a href="/account/developer" class="tc-hover-raise" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1.125rem; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); transition: transform 0.2s;">
@@ -34,10 +34,10 @@
             <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #10b981;">
                 <div style="font-size: 2rem; margin-bottom: 1rem;">✅</div>
                 <h3 style="color: #0f172a; font-size: 1.25rem; font-weight: 700; margin: 0 0 0.75rem 0;">
-                    Actualizado 2025
+                    Actualizado {{template "partial:fiscal-year" .}}
                 </h3>
                 <p style="color: #64748b; margin: 0; line-height: 1.6;">
-                    ISR, UMA ($3,439.46), IMSS, y las nuevas tablas de Cesantía progresiva. Todo al día.
+                    ISR, UMA vigente, IMSS, y las nuevas tablas de Cesantía progresiva. Todo al día.
                 </p>
             </div>
 

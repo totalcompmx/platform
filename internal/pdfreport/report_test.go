@@ -12,24 +12,24 @@ import (
 )
 
 func TestRenderComparisonHTML(t *testing.T) {
-	html, err := RenderComparisonHTML([]PackageResult{testPackageResult()})
+	html, err := RenderComparisonHTML([]PackageResult{testPackageResult()}, database.FiscalYear{Year: 2026})
 
 	assertNoError(t, err)
 	assertContains(t, html, "Base")
 }
 
 func TestRenderComparisonHTMLUsesReportData(t *testing.T) {
-	tmpl := template.Must(template.New("report.tmpl").Parse(`{{.Date}} {{range .Packages}}{{.Name}}{{end}}`))
-	html, err := renderComparisonHTML([]PackageResult{testPackageResult()}, func() (*template.Template, error) {
+	tmpl := template.Must(template.New("report.tmpl").Parse(`{{.Date}} {{.FiscalYear}} {{range .Packages}}{{.Name}}{{end}}`))
+	html, err := renderComparisonHTML([]PackageResult{testPackageResult()}, database.FiscalYear{Year: 2026}, func() (*template.Template, error) {
 		return tmpl, nil
 	}, fixedNow)
 
 	assertNoError(t, err)
-	assertString(t, html, "02 Jan 2025 Base")
+	assertString(t, html, "02 Jan 2025 2026 Base")
 }
 
 func TestRenderComparisonHTMLReportsParseErrors(t *testing.T) {
-	_, err := renderComparisonHTML(nil, func() (*template.Template, error) {
+	_, err := renderComparisonHTML(nil, database.FiscalYear{}, func() (*template.Template, error) {
 		return nil, errors.New("parse failed")
 	}, fixedNow)
 
@@ -43,7 +43,7 @@ func TestRenderComparisonHTMLReportsExecutionErrors(t *testing.T) {
 		},
 	}).Parse(`{{fail}}`))
 
-	_, err := renderComparisonHTML(nil, func() (*template.Template, error) {
+	_, err := renderComparisonHTML(nil, database.FiscalYear{}, func() (*template.Template, error) {
 		return tmpl, nil
 	}, fixedNow)
 

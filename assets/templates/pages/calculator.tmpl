@@ -1,8 +1,8 @@
-{{define "page:title"}}Calculadora de Nómina 2025{{end}}
+{{define "page:title"}}Calculadora de Nómina {{template "partial:fiscal-year" .}}{{end}}
 
 {{define "page:main"}}
 <div style="max-width: 800px; margin: 0 auto; padding: 2rem;">
-    <h1 style="color: #2563eb; margin-bottom: 1.5rem;">🇲🇽 Calculadora de Nómina Mexicana 2025</h1>
+    <h1 style="color: #2563eb; margin-bottom: 1.5rem;">🇲🇽 Calculadora de Nómina Mexicana {{template "partial:fiscal-year" .}}</h1>
     
     <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
         <form action="/calculator" method="POST" novalidate>
@@ -52,7 +52,7 @@
     {{template "calculator:result" .}}
 
     <div style="margin-top: 2rem; padding: 1rem; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; font-size: 0.875rem; color: #1e40af;">
-        <strong>ℹ️ Nota:</strong> Este cálculo incluye las tarifas ISR 2025, tasas IMSS progresivas de Cesantía, 
+        <strong>ℹ️ Nota:</strong> Este cálculo incluye las tarifas ISR {{template "partial:fiscal-year" .}}, tasas IMSS progresivas de Cesantía,
         y el Subsidio al Empleo cuando aplica. Los cálculos son aproximados y no incluyen beneficios adicionales 
         como Fondo de Ahorro o Infonavit.
     </div>

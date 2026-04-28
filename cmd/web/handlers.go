@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/jcroyoaun/totalcompmx/internal/database"
 	"github.com/jcroyoaun/totalcompmx/internal/equity"
+	"github.com/jcroyoaun/totalcompmx/internal/fiscalyear"
 	"github.com/jcroyoaun/totalcompmx/internal/password"
 	"github.com/jcroyoaun/totalcompmx/internal/pdf"
 	"github.com/jcroyoaun/totalcompmx/internal/request"
@@ -20,6 +22,7 @@ var generateComparisonReport = pdf.GenerateComparisonReport
 var responsePage = response.Page
 var responsePageWithHeaders = response.PageWithHeaders
 var responseJSON = response.JSON
+var errNoActiveFiscalYear = errors.New("no active fiscal year found")
 
 type OtherBenefit struct {
 	Name         string
@@ -216,16 +219,23 @@ func (app *application) readHomePost(w http.ResponseWriter, r *http.Request) (da
 }
 
 func (app *application) requireActiveFiscalYear(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
-	fiscalYear, found, err := app.db.GetActiveFiscalYear()
+	fiscalYear, err := app.activeFiscalYear()
 	if err != nil {
 		app.serverError(w, r, err)
 		return database.FiscalYear{}, false
 	}
-	if !found {
-		app.serverError(w, r, fmt.Errorf("no active fiscal year found"))
-		return database.FiscalYear{}, false
-	}
 	return fiscalYear, true
+}
+
+func (app *application) activeFiscalYear() (database.FiscalYear, error) {
+	fiscalYear, found, err := app.db.GetActiveFiscalYear()
+	if err != nil {
+		return database.FiscalYear{}, err
+	}
+	if !found {
+		return database.FiscalYear{}, errNoActiveFiscalYear
+	}
+	return fiscalYear, nil
 }
 
 func (app *application) renderInvalidHomeForm(w http.ResponseWriter, r *http.Request, fiscalYear database.FiscalYear) {
@@ -252,6 +262,10 @@ func (app *application) renderPage(w http.ResponseWriter, r *http.Request, statu
 	if err != nil {
 		app.serverError(w, r, err)
 	}
+}
+
+func (app *application) renderStaticPage(w http.ResponseWriter, r *http.Request, page string) {
+	app.renderPage(w, r, http.StatusOK, app.newTemplateData(r), page)
 }
 
 func newHomePostPayload(form map[string][]string) homePostPayload {
@@ -839,12 +853,7 @@ func (app *application) sendPasswordResetEmail(w http.ResponseWriter, r *http.Re
 }
 
 func (app *application) forgottenPasswordConfirmation(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/forgotten-password-confirmation.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/forgotten-password-confirmation.tmpl")
 }
 
 func (app *application) passwordReset(w http.ResponseWriter, r *http.Request) {
@@ -943,27 +952,17 @@ func (app *application) updateResetPassword(w http.ResponseWriter, r *http.Reque
 }
 
 func (app *application) passwordResetConfirmation(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/password-reset-confirmation.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/password-reset-confirmation.tmpl")
 }
 
 func (app *application) restricted(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/restricted.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/restricted.tmpl")
 }
 
 func (app *application) salaryCalculator(w http.ResponseWriter, r *http.Request) {
 	form := calculatorForm{}
 	if r.Method == http.MethodGet {
-		app.renderFormPage(w, r, http.StatusOK, "pages/calculator.tmpl", form)
+		app.renderCalculatorForm(w, r, http.StatusOK, &form)
 		return
 	}
 
@@ -1000,7 +999,7 @@ func (app *application) readCalculatorForm(w http.ResponseWriter, r *http.Reques
 		return true
 	}
 
-	app.renderFormPage(w, r, http.StatusUnprocessableEntity, "pages/calculator.tmpl", form)
+	app.renderCalculatorForm(w, r, http.StatusUnprocessableEntity, form)
 	return false
 }
 
@@ -1033,44 +1032,40 @@ func (app *application) renderCalculatorResult(w http.ResponseWriter, r *http.Re
 	app.renderPage(w, r, http.StatusOK, data, "pages/calculator.tmpl")
 }
 
+func (app *application) renderCalculatorForm(w http.ResponseWriter, r *http.Request, status int, form *calculatorForm) {
+	fiscalYear, ok := app.requireActiveFiscalYear(w, r)
+	if !ok {
+		return
+	}
+
+	data := app.newTemplateData(r)
+	data["Form"] = form
+	data["FiscalYear"] = fiscalYear
+	app.renderPage(w, r, status, data, "pages/calculator.tmpl")
+}
+
 // privacy displays the privacy policy (Aviso de Privacidad)
 func (app *application) privacy(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/privacy.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/privacy.tmpl")
 }
 
 // terms displays the terms and conditions (Términos y Condiciones)
 func (app *application) terms(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/terms.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/terms.tmpl")
 }
 
 // robotsTxt serves the robots.txt file for SEO
 func (app *application) robotsTxt(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
 	robotsContent := `User-agent: *
 Allow: /
 
 Sitemap: https://totalcomp.mx/sitemap.xml`
 
-	w.Write([]byte(robotsContent))
+	app.writeStaticContent(w, "text/plain; charset=utf-8", robotsContent)
 }
 
 // sitemapXML serves the sitemap.xml file for SEO
 func (app *application) sitemapXML(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
 	sitemapContent := `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
@@ -1093,7 +1088,15 @@ func (app *application) sitemapXML(w http.ResponseWriter, r *http.Request) {
   </url>
 </urlset>`
 
-	w.Write([]byte(sitemapContent))
+	app.writeStaticContent(w, "application/xml; charset=utf-8", sitemapContent)
+}
+
+func (app *application) writeStaticContent(w http.ResponseWriter, contentType string, body string) {
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(body)); err != nil {
+		app.logger.Error("failed to write static content", "error", err)
+	}
 }
 
 // accountDeveloper displays the developer dashboard where users can manage their API keys
@@ -1158,12 +1161,7 @@ func (app *application) generateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 // developersPage renders the public marketing page for the API
 func (app *application) developersPage(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-
-	err := responsePage(w, http.StatusOK, data, "pages/developers.tmpl")
-	if err != nil {
-		app.serverError(w, r, err)
-	}
+	app.renderStaticPage(w, r, "pages/developers.tmpl")
 }
 
 // verifyEmail handles the email verification flow
@@ -1319,14 +1317,13 @@ func (app *application) readAPICalculateRequest(w http.ResponseWriter, r *http.R
 }
 
 func (app *application) activeFiscalYearJSON(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
-	fiscalYear, found, err := app.db.GetActiveFiscalYear()
+	fiscalYear, err := app.activeFiscalYear()
 	if err != nil {
+		if errors.Is(err, errNoActiveFiscalYear) {
+			app.writeJSONError(w, r, http.StatusInternalServerError, "No active fiscal year configuration found")
+			return database.FiscalYear{}, false
+		}
 		app.serverError(w, r, err)
-		return database.FiscalYear{}, false
-	}
-
-	if !found {
-		app.writeJSONError(w, r, http.StatusInternalServerError, "No active fiscal year configuration found")
 		return database.FiscalYear{}, false
 	}
 
@@ -1417,7 +1414,7 @@ func (app *application) exportPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.writePDFResponse(w, pdfBytes)
+	app.writePDFResponse(w, pdfBytes, exportData.fiscalYear)
 }
 
 type pdfExportData struct {
@@ -1487,22 +1484,7 @@ func (app *application) pdfFiscalYear(w http.ResponseWriter, r *http.Request) (d
 		return fiscalYear, true
 	}
 
-	return app.activeFiscalYearForPDF(w, r)
-}
-
-func (app *application) activeFiscalYearForPDF(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
-	fiscalYear, found, err := app.db.GetActiveFiscalYear()
-	if err != nil {
-		app.serverError(w, r, err)
-		return database.FiscalYear{}, false
-	}
-
-	if !found {
-		app.serverError(w, r, fmt.Errorf("no active fiscal year"))
-		return database.FiscalYear{}, false
-	}
-
-	return fiscalYear, true
+	return app.requireActiveFiscalYear(w, r)
 }
 
 func buildPDFPackages(results []PackageResult, packageInputs []PackageInput) []pdf.PackageResult {
@@ -1583,9 +1565,9 @@ func (app *application) generateExportPDF(w http.ResponseWriter, r *http.Request
 	return pdfBytes, true
 }
 
-func (app *application) writePDFResponse(w http.ResponseWriter, pdfBytes []byte) {
+func (app *application) writePDFResponse(w http.ResponseWriter, pdfBytes []byte, fiscalYear database.FiscalYear) {
 	w.Header().Set("Content-Type", "application/pdf")
-	filename := "TotalComp_Comparacion_2025.pdf"
+	filename := fmt.Sprintf("TotalComp_Comparacion_%d.pdf", fiscalyear.CurrentLabel(fiscalYear))
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(pdfBytes)))
 

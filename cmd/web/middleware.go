@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jcroyoaun/totalcompmx/internal/database"
-	"github.com/jcroyoaun/totalcompmx/internal/metrics"
 	"github.com/jcroyoaun/totalcompmx/internal/response"
 
 	"github.com/justinas/nosurf"
@@ -211,7 +208,7 @@ func (app *application) authenticatedAPIUser(w http.ResponseWriter, r *http.Requ
 func (app *application) requestAPIKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	apiKey, authErr := bearerAPIKey(r)
 	if authErr != "" {
-		app.writeAPIError(w, r, http.StatusUnauthorized, authErr)
+		app.writeJSONError(w, r, http.StatusUnauthorized, authErr)
 		return "", false
 	}
 	return apiKey, true
@@ -224,7 +221,7 @@ func (app *application) apiUserForKey(w http.ResponseWriter, r *http.Request, ap
 		return database.User{}, false
 	}
 	if !found {
-		app.writeAPIError(w, r, http.StatusUnauthorized, "Invalid API key")
+		app.writeJSONError(w, r, http.StatusUnauthorized, "Invalid API key")
 		return database.User{}, false
 	}
 
@@ -280,13 +277,6 @@ func (app *application) writeAPIRateLimitError(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func (app *application) writeAPIError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	err := responseJSON(w, status, map[string]string{"error": message})
-	if err != nil {
-		app.serverError(w, r, err)
-	}
-}
-
 func (app *application) recordAPIUsage(r *http.Request, userID int) {
 	if err := app.db.LogAPICall(userID); err != nil {
 		app.logger.Error("failed to log API call", "error", err, "user_id", userID)
@@ -295,43 +285,4 @@ func (app *application) recordAPIUsage(r *http.Request, userID int) {
 	app.backgroundTask(r, func() error {
 		return app.db.IncrementAPICallsCount(userID)
 	})
-}
-
-func (app *application) prometheusMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip metrics endpoint to avoid pollution
-		if r.URL.Path == "/metrics" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		app.serveWithPrometheusMetrics(w, r, next)
-	})
-}
-
-func (app *application) serveWithPrometheusMetrics(w http.ResponseWriter, r *http.Request, next http.Handler) {
-	start := time.Now()
-	mw := metricsResponseWriter(w)
-
-	metrics.ActiveRequests.Inc()
-	defer metrics.ActiveRequests.Dec()
-
-	next.ServeHTTP(mw, r)
-	recordHTTPMetrics(r, mw, start)
-}
-
-func metricsResponseWriter(w http.ResponseWriter) *response.MetricsResponseWriter {
-	if mw, ok := w.(*response.MetricsResponseWriter); ok {
-		return mw
-	}
-
-	return response.NewMetricsResponseWriter(w)
-}
-
-func recordHTTPMetrics(r *http.Request, mw *response.MetricsResponseWriter, start time.Time) {
-	duration := time.Since(start).Seconds()
-	status := strconv.Itoa(mw.StatusCode)
-
-	metrics.RequestDuration.WithLabelValues(r.Method, r.URL.Path, status).Observe(duration)
-	metrics.RequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
 }

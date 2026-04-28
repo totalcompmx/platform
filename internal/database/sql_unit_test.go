@@ -55,7 +55,7 @@ func TestNewReportsConnectorErrors(t *testing.T) {
 	}
 }
 
-func TestMigrateUp(t *testing.T) {
+func TestMigrateUpUnit(t *testing.T) {
 	t.Run("runs migrations", testMigrateUpRunsMigrations)
 	t.Run("reports source errors", testMigrateUpSourceError)
 	t.Run("reports runner creation errors", testMigrateUpRunnerError)
@@ -441,22 +441,6 @@ func TestTransactionErrors(t *testing.T) {
 	}
 	if err := newFakeDB(t, &fakeSQL{commitErr: errors.New("commit failed")}).withTx(context.Background(), func(tx *sql.Tx) error { return nil }); err == nil {
 		t.Fatal("expected commit error")
-	}
-}
-
-func TestRecordConnectionPoolMetrics(t *testing.T) {
-	newFakeDB(t, &fakeSQL{}).recordConnectionPoolMetrics()
-	newFakeDB(t, &fakeSQL{pingErr: errors.New("ping failed")}).recordConnectionPoolMetrics()
-}
-
-func TestMonitorConnectionPoolTickRecordsMetrics(t *testing.T) {
-	ticker := time.NewTicker(time.Nanosecond)
-	defer ticker.Stop()
-
-	done := newFakeDB(t, &fakeSQL{}).monitorConnectionPoolTick(context.Background(), ticker)
-
-	if done {
-		t.Fatal("got done=true; want false for ticker branch")
 	}
 }
 

@@ -380,10 +380,10 @@
     <!-- Footer -->
     <div class="footer">
         <div class="legal-notice">
-            ⚠️ <strong>Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF 2025) pero no constituyen asesoría fiscal, contable o legal profesional. El desarrollador no se hace responsable por discrepancias con los cálculos oficiales del SAT o el IMSS, ni por la toma de decisiones financieras basadas en estos resultados. Se recomienda consultar a un contador público certificado para determinaciones fiscales definitivas.
+            ⚠️ <strong>Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF {{.FiscalYear}}) pero no constituyen asesoría fiscal, contable o legal profesional. El desarrollador no se hace responsable por discrepancias con los cálculos oficiales del SAT o el IMSS, ni por la toma de decisiones financieras basadas en estos resultados. Se recomienda consultar a un contador público certificado para determinaciones fiscales definitivas.
         </div>
         <div class="footer-brand">
-            Generado por TotalComp MX • totalcomp.mx • Versión 2025
+            Generado por TotalComp MX • totalcomp.mx • Versión {{.FiscalYear}}
         </div>
     </div>
 </body>
@@ -402,9 +402,9 @@ margin: 10mm;
 
 {{define "pdf:title"}}
 {{if eq (len .Packages) 1}}
-Reporte de Compensación 2025
+Reporte de Compensación {{.FiscalYear}}
 {{else}}
-Comparación de Paquetes de Compensación 2025
+Comparación de Paquetes de Compensación {{.FiscalYear}}
 {{end}}
 {{end}}
 

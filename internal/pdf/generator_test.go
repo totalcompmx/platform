@@ -16,7 +16,7 @@ import (
 )
 
 func TestGenerateComparisonReport(t *testing.T) {
-	restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult) (string, error) {
+	restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
 		return "<html>ok</html>", nil
 	})
 	defer restoreHTML()
@@ -37,7 +37,7 @@ func TestGenerateComparisonReport(t *testing.T) {
 
 func TestGenerateComparisonReportErrors(t *testing.T) {
 	t.Run("HTML render error", func(t *testing.T) {
-		restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult) (string, error) {
+		restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
 			return "", errors.New("html failed")
 		})
 		defer restoreHTML()
@@ -48,7 +48,7 @@ func TestGenerateComparisonReportErrors(t *testing.T) {
 	})
 
 	t.Run("PDF render error", func(t *testing.T) {
-		restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult) (string, error) {
+		restoreHTML := stubRenderComparisonHTML(func(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
 			return "<html>ok</html>", nil
 		})
 		defer restoreHTML()
@@ -174,7 +174,7 @@ func fakeSetDocument(t *testing.T) func(context.Context, cdp.FrameID, string) er
 	}
 }
 
-func stubRenderComparisonHTML(fn func([]PackageResult) (string, error)) func() {
+func stubRenderComparisonHTML(fn func([]PackageResult, database.FiscalYear) (string, error)) func() {
 	original := renderComparisonHTML
 	renderComparisonHTML = fn
 	return func() {

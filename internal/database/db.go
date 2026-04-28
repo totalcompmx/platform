@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jcroyoaun/totalcompmx/assets"
-	"github.com/jcroyoaun/totalcompmx/internal/metrics"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
@@ -71,50 +70,4 @@ func ignoreNoMigrationChange(err error) error {
 	}
 
 	return err
-}
-
-func (db *DB) MonitorConnectionPool(ctx context.Context) <-chan struct{} {
-	done := make(chan struct{})
-	go db.runConnectionPoolMonitor(ctx, done)
-	return done
-}
-
-func (db *DB) runConnectionPoolMonitor(ctx context.Context, done chan<- struct{}) {
-	defer close(done)
-
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		if db.monitorConnectionPoolTick(ctx, ticker) {
-			return
-		}
-	}
-}
-
-func (db *DB) monitorConnectionPoolTick(ctx context.Context, ticker *time.Ticker) bool {
-	select {
-	case <-ticker.C:
-		db.recordConnectionPoolMetrics()
-		return false
-	case <-ctx.Done():
-		return true
-	}
-}
-
-func (db *DB) recordConnectionPoolMetrics() {
-	stats := db.DB.Stats()
-	metrics.DbOpenConnections.Set(float64(stats.OpenConnections))
-	metrics.DbInUseConnections.Set(float64(stats.InUse))
-	metrics.DbIdleConnections.Set(float64(stats.Idle))
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		metrics.DbUp.Set(0)
-		return
-	}
-
-	metrics.DbUp.Set(1)
 }

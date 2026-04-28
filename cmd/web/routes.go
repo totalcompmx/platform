@@ -6,7 +6,6 @@ import (
 	"github.com/jcroyoaun/totalcompmx/assets"
 
 	"github.com/alexedwards/flow"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (app *application) routes() http.Handler {
@@ -14,12 +13,9 @@ func (app *application) routes() http.Handler {
 	mux.NotFound = http.HandlerFunc(app.notFound)
 
 	// Global middleware for ALL routes
-	mux.Use(app.prometheusMiddleware)
 	mux.Use(app.logAccess)
 	mux.Use(app.recoverPanic)
 	mux.Use(app.securityHeaders)
-
-	mux.HandleFunc("/metrics", promhttp.Handler().ServeHTTP, "GET")
 
 	fileServer := http.FileServer(http.FS(assets.EmbeddedFiles))
 	mux.Handle("/static/...", fileServer, "GET")

@@ -10,6 +10,7 @@ import (
 
 	"github.com/jcroyoaun/totalcompmx/assets"
 	"github.com/jcroyoaun/totalcompmx/internal/database"
+	"github.com/jcroyoaun/totalcompmx/internal/fiscalyear"
 	"github.com/jcroyoaun/totalcompmx/internal/funcs"
 )
 
@@ -58,32 +59,34 @@ type PackageResult struct {
 
 // ReportData represents the data passed to the PDF template.
 type ReportData struct {
-	Date     string
-	Packages []PackageResult
+	Date       string
+	FiscalYear int
+	Packages   []PackageResult
 }
 
-func RenderComparisonHTML(packages []PackageResult) (string, error) {
-	return renderComparisonHTML(packages, parseReportTemplate, time.Now)
+func RenderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
+	return renderComparisonHTML(packages, fiscalYear, parseReportTemplate, time.Now)
 }
 
-func renderComparisonHTML(packages []PackageResult, parse func() (*template.Template, error), now func() time.Time) (string, error) {
+func renderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYear, parse func() (*template.Template, error), now func() time.Time) (string, error) {
 	tmpl, err := parse()
 	if err != nil {
 		return "", err
 	}
 
 	var htmlBuf bytes.Buffer
-	if err := tmpl.Execute(&htmlBuf, reportData(packages, now())); err != nil {
+	if err := tmpl.Execute(&htmlBuf, reportData(packages, fiscalYear, now())); err != nil {
 		return "", fmt.Errorf("failed to execute PDF template: %w", err)
 	}
 
 	return htmlBuf.String(), nil
 }
 
-func reportData(packages []PackageResult, now time.Time) ReportData {
+func reportData(packages []PackageResult, fiscalYear database.FiscalYear, now time.Time) ReportData {
 	return ReportData{
-		Date:     now.Format("02 Jan 2006"),
-		Packages: packages,
+		Date:       now.Format("02 Jan 2006"),
+		FiscalYear: fiscalyear.Label(fiscalYear, now),
+		Packages:   packages,
 	}
 }
 
