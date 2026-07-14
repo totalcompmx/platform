@@ -112,7 +112,7 @@
   <span style="color: #94a3b8;">-H</span> <span style="color: #10b981;">"Content-Type: application/json"</span> \
   <span style="color: #94a3b8;">-d</span> '{
     <span style="color: #6366f1;">"salary"</span>: <span style="color: #f59e0b;">50000</span>,
-    <span style="color: #6366f1;">"regime"</span>: <span style="color: #10b981;">"sueldos"</span>,
+    <span style="color: #6366f1;">"regime"</span>: <span style="color: #10b981;">"sueldos_salarios"</span>,
     <span style="color: #6366f1;">"has_aguinaldo"</span>: <span style="color: #10b981;">true</span>,
     <span style="color: #6366f1;">"aguinaldo_days"</span>: <span style="color: #f59e0b;">30</span>
   }'</pre>
@@ -123,12 +123,46 @@
                 <pre style="margin: 0; color: #e2e8f0; font-family: 'Courier New', monospace; font-size: 0.875rem; white-space: pre-wrap; line-height: 1.6;">{
   <span style="color: #6366f1;">"success"</span>: <span style="color: #10b981;">true</span>,
   <span style="color: #6366f1;">"data"</span>: {
-    <span style="color: #6366f1;">"net_salary"</span>: <span style="color: #f59e0b;">37245.83</span>,
-    <span style="color: #6366f1;">"isr_tax"</span>: <span style="color: #f59e0b;">10754.17</span>,
-    <span style="color: #6366f1;">"yearly_net"</span>: <span style="color: #f59e0b;">541750.00</span>,
-    <span style="color: #6366f1;">"monthly_adjusted"</span>: <span style="color: #f59e0b;">45145.83</span>
+    <span style="color: #6366f1;">"net_salary"</span>: <span style="color: #f59e0b;">39333.01</span>,
+    <span style="color: #6366f1;">"isr_tax"</span>: <span style="color: #f59e0b;">9466.99</span>,
+    <span style="color: #6366f1;">"imss_worker"</span>: <span style="color: #f59e0b;">1200.00</span>,
+    <span style="color: #6366f1;">"yearly_net"</span>: <span style="color: #f59e0b;">507553.84</span>,
+    <span style="color: #6366f1;">"monthly_adjusted"</span>: <span style="color: #f59e0b;">42296.15</span>,
+    <span style="color: #6366f1;">"breakdown"</span>: {
+      <span style="color: #6366f1;">"aguinaldo_net"</span>: <span style="color: #f59e0b;">35557.72</span>,
+      <span style="color: #6366f1;">"imss_employer_monthly"</span>: <span style="color: #f59e0b;">7662.00</span>
+    }
+  },
+  <span style="color: #6366f1;">"meta"</span>: {
+    <span style="color: #6366f1;">"fiscal_year"</span>: <span style="color: #f59e0b;">2025</span>
   }
 }</pre>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <h3 style="text-align: center; color: #0f172a; font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">
+                    Endpoints
+                </h3>
+                <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; overflow: hidden;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0;">
+                        <span style="background: #10b981; color: white; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; flex-shrink: 0;">POST</span>
+                        <code style="color: #0f172a; font-weight: 600; font-size: 0.875rem;">/api/v1/calculate</code>
+                        <span style="color: #64748b; font-size: 0.875rem;">— calcula un paquete completo</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0;">
+                        <span style="background: #10b981; color: white; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; flex-shrink: 0;">POST</span>
+                        <code style="color: #0f172a; font-weight: 600; font-size: 0.875rem;">/api/v1/compare</code>
+                        <span style="color: #64748b; font-size: 0.875rem;">— compara de 2 a 10 paquetes</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem;">
+                        <span style="background: #6366f1; color: white; font-weight: 700; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; flex-shrink: 0;">GET</span>
+                        <code style="color: #0f172a; font-weight: 600; font-size: 0.875rem;">/api/v1/openapi.json</code>
+                        <span style="color: #64748b; font-size: 0.875rem;">— especificación OpenAPI 3.1</span>
+                    </div>
+                </div>
+                <p style="text-align: center; color: #64748b; margin-top: 1rem; font-size: 0.875rem; line-height: 1.6;">
+                    Tus requests soportan prestaciones (aguinaldo, vales, prima vacacional, fondo de ahorro, otras prestaciones), crédito Infonavit, salario en USD con tipo de cambio, frecuencias de pago y equity (RSUs).
+                </p>
             </div>
         </div>
     </div>

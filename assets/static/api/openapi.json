@@ -1,0 +1,1473 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TotalComp MX API",
+    "version": "1.0.0",
+    "description": "Public API for TotalComp MX, a Mexican payroll and total-compensation calculator.\n\nGiven a compensation package (salary plus optional benefits), the API computes the full Mexican payroll picture: ISR (Impuesto Sobre la Renta) withholding, IMSS (Instituto Mexicano del Seguro Social) employee and employer contributions, the SBC (Salario Base de Cotizacion), aguinaldo (Christmas bonus), prima vacacional (vacation premium), fondo de ahorro (savings fund), vales de despensa (grocery vouchers), Infonavit housing-credit reporting, optional equity vesting, and RESICO (Regimen Simplificado de Confianza) alternative tax brackets for individuals.\n\nAll monetary figures in requests and responses are decimal numbers (not formatted strings). Unless noted otherwise, salary and benefit amounts are normalized internally to a monthly MXN figure before any tax or contribution is computed; USD amounts are converted using `exchange_rate` (or the active fiscal year's default USD/MXN rate when omitted).\n\n### Authentication\n`/api/v1/calculate` and `/api/v1/compare` require an API key sent as an HTTP Bearer token: `Authorization: Bearer YOUR_API_KEY`. `/api/v1/openapi.json` is public and requires no authentication.\n\n### Rate limits\n- Accounts with an unverified email are limited to 10 API calls per day.\n- Accounts with a verified email are limited to 100 API calls per month (Hobby plan).\n\nExceeding either limit returns HTTP 429 with a JSON body describing the limit, current usage, and how to raise it (verify your email, or contact hola@totalcomp.mx about the Pro plan).\n\n### CORS\nEvery response under `/api/` — including error responses such as 404 and 405 — carries `Access-Control-Allow-Origin: *`, so these endpoints can be called directly from browser-based clients. `OPTIONS` requests to any `/api/` path are handled as CORS preflight and return an empty 204 response with `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers: Authorization, Content-Type`, and `Access-Control-Max-Age: 86400`.",
+    "contact": {
+      "name": "TotalComp MX",
+      "email": "hola@totalcomp.mx",
+      "url": "https://totalcomp.mx"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://totalcomp.mx",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Calculations",
+      "description": "Endpoints that run Mexican payroll and total-compensation calculations."
+    },
+    {
+      "name": "Meta",
+      "description": "Machine-readable metadata about the API itself."
+    }
+  ],
+  "paths": {
+    "/api/v1/calculate": {
+      "post": {
+        "tags": [
+          "Calculations"
+        ],
+        "summary": "Calculate one compensation package",
+        "description": "Runs the full Mexican payroll calculation for a single compensation package: ISR withholding, IMSS employee/employer contributions, SBC, aguinaldo, prima vacacional, fondo de ahorro, vales de despensa, Infonavit reporting, custom other_benefits, optional equity vesting, and yearly totals. Supports both the traditional `sueldos_salarios` regime and the `resico` regime.",
+        "operationId": "calculatePackage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The request body is decoded strictly: any unknown or misspelled JSON field is rejected with HTTP 400 (`{\"success\": false, \"error\": \"body contains unknown key \\\"<name>\\\"\"}`).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageRequest"
+              },
+              "example": {
+                "name": "Oferta A",
+                "salary": 50000,
+                "regime": "sueldos_salarios",
+                "currency": "MXN",
+                "payment_frequency": "monthly",
+                "exchange_rate": 17.5,
+                "has_aguinaldo": true,
+                "has_prima_vacacional": true,
+                "other_benefits": [
+                  {
+                    "name": "Seguro de gastos medicos mayores",
+                    "amount": 1500,
+                    "tax_free": true,
+                    "currency": "MXN",
+                    "cadence": "monthly",
+                    "is_percentage": false
+                  }
+                ],
+                "has_equity": true,
+                "initial_equity_usd": 20000,
+                "has_refreshers": true,
+                "refresher_min_usd": 5000,
+                "refresher_max_usd": 10000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calculation succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalculateResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "name": "Oferta A",
+                    "regime": "sueldos_salarios",
+                    "currency": "MXN",
+                    "exchange_rate": 17.5,
+                    "payment_frequency": "monthly",
+                    "gross_salary": 50000,
+                    "net_salary": 40833.01,
+                    "isr_tax": 9466.99,
+                    "subsidio_empleo": 0,
+                    "imss_worker": 1200,
+                    "sbc": 1725.82,
+                    "yearly_gross_base": 600000,
+                    "yearly_gross": 753028.26,
+                    "yearly_net": 512247.23,
+                    "monthly_adjusted": 42687.27,
+                    "breakdown": {
+                      "aguinaldo_gross": 24671.05,
+                      "aguinaldo_isr": 6383.06,
+                      "aguinaldo_net": 18287.99,
+                      "prima_vacacional_gross": 4934.21,
+                      "prima_vacacional_isr": 971.09,
+                      "prima_vacacional_net": 3963.12,
+                      "vales_despensa_monthly": 0,
+                      "fondo_ahorro_employee_monthly": 0,
+                      "fondo_ahorro_yearly": 0,
+                      "other_benefits_monthly_net": 1500,
+                      "infonavit_employer_monthly": 2623.25,
+                      "infonavit_employer_annual": 31479,
+                      "imss_employer_monthly": 7662,
+                      "imss_employer_annual": 91944,
+                      "has_infonavit_credit": false,
+                      "unpaid_vacation_days": 0,
+                      "unpaid_vacation_loss": 0
+                    },
+                    "other_benefits": [
+                      {
+                        "name": "Seguro de gastos medicos mayores",
+                        "amount": 1500,
+                        "tax_free": true,
+                        "isr": 0,
+                        "net": 1500,
+                        "cadence": "monthly"
+                      }
+                    ],
+                    "equity": {
+                      "config": {
+                        "initial_grant_usd": 20000,
+                        "has_refreshers": true,
+                        "refresher_min_usd": 5000,
+                        "refresher_max_usd": 10000,
+                        "vesting_years": 4,
+                        "exchange_rate": 17.5
+                      },
+                      "schedule": [
+                        {
+                          "year": 0,
+                          "initial_grant_vested_usd": 0,
+                          "refresher_total_usd": 0,
+                          "new_refresher_granted_usd": 0,
+                          "total_vested_usd": 0,
+                          "total_vested_mxn": 0
+                        },
+                        {
+                          "year": 1,
+                          "initial_grant_vested_usd": 5000,
+                          "refresher_total_usd": 0,
+                          "new_refresher_granted_usd": 7500,
+                          "total_vested_usd": 5000,
+                          "total_vested_mxn": 87500
+                        },
+                        {
+                          "year": 2,
+                          "initial_grant_vested_usd": 5000,
+                          "refresher_total_usd": 1875,
+                          "new_refresher_granted_usd": 7500,
+                          "total_vested_usd": 6875,
+                          "total_vested_mxn": 120312.5
+                        },
+                        {
+                          "year": 3,
+                          "initial_grant_vested_usd": 5000,
+                          "refresher_total_usd": 3750,
+                          "new_refresher_granted_usd": 7500,
+                          "total_vested_usd": 8750,
+                          "total_vested_mxn": 153125
+                        },
+                        {
+                          "year": 4,
+                          "initial_grant_vested_usd": 5000,
+                          "refresher_total_usd": 5625,
+                          "new_refresher_granted_usd": 7500,
+                          "total_vested_usd": 10625,
+                          "total_vested_mxn": 185937.5
+                        }
+                      ]
+                    }
+                  },
+                  "meta": {
+                    "fiscal_year": 2025,
+                    "uma_daily": 113.14,
+                    "uma_monthly": 3439.46,
+                    "usd_mxn_rate": 17.5
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be processed. Either the JSON body was malformed, one or more fields failed validation (`details` lists every problem), or the salary falls outside the RESICO brackets configured for the active fiscal year.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GenericErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation_failed": {
+                    "summary": "One or more fields are invalid",
+                    "value": {
+                      "success": false,
+                      "error": "Validation failed",
+                      "details": [
+                        {
+                          "field": "salary",
+                          "message": "must be greater than 0"
+                        },
+                        {
+                          "field": "regime",
+                          "message": "is required (one of: sueldos_salarios, resico)"
+                        }
+                      ]
+                    }
+                  },
+                  "malformed_json": {
+                    "summary": "Body is not valid JSON",
+                    "value": {
+                      "success": false,
+                      "error": "body contains badly-formed JSON (at character 12)"
+                    }
+                  },
+                  "unknown_field": {
+                    "summary": "Body contains an unknown or misspelled field (strict decoding)",
+                    "value": {
+                      "success": false,
+                      "error": "body contains unknown key \"salery\""
+                    }
+                  },
+                  "resico_out_of_range": {
+                    "summary": "Salary outside supported RESICO brackets",
+                    "value": {
+                      "success": false,
+                      "error": "salary is outside the supported RESICO brackets for the active fiscal year"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key. Returned when the `Authorization` header is absent, is not in the `Bearer <token>` format, or the key does not match any account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericErrorResponse"
+                },
+                "examples": {
+                  "missing_header": {
+                    "summary": "No Authorization header",
+                    "value": {
+                      "success": false,
+                      "error": "Missing Authorization header. Use: Authorization: Bearer YOUR_API_KEY"
+                    }
+                  },
+                  "invalid_format": {
+                    "summary": "Header not in 'Bearer <token>' format",
+                    "value": {
+                      "success": false,
+                      "error": "Invalid Authorization format. Use: Authorization: Bearer YOUR_API_KEY"
+                    }
+                  },
+                  "invalid_key": {
+                    "summary": "Unknown or revoked API key",
+                    "value": {
+                      "success": false,
+                      "error": "Invalid API key"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Accounts with an unverified email are limited to 10 calls/day; accounts with a verified email are limited to 100 calls/month (Hobby plan).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DailyLimitErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MonthlyLimitErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "daily_limit_unverified": {
+                    "summary": "Unverified account: 10/day exceeded",
+                    "value": {
+                      "success": false,
+                      "error": "Daily API limit exceeded",
+                      "message": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month.",
+                      "limit": 10,
+                      "used": 10,
+                      "type": "unverified_user",
+                      "action": "Please verify your email to increase your limit."
+                    }
+                  },
+                  "monthly_limit_verified": {
+                    "summary": "Verified account: 100/month exceeded",
+                    "value": {
+                      "success": false,
+                      "error": "Monthly API limit exceeded",
+                      "message": "You have reached the Hobby plan limit of 100 API calls this month. Contact hola@totalcomp.mx about the Pro plan for higher limits.",
+                      "limit": 100,
+                      "used": 100,
+                      "type": "verified_user",
+                      "action": "Contact hola@totalcomp.mx to upgrade your plan."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error (including recovered panics), or the server has no active fiscal-year configuration. 500 responses on /api/v1 paths are always JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericErrorResponse"
+                },
+                "examples": {
+                  "server_error": {
+                    "summary": "Unexpected server error or panic",
+                    "value": {
+                      "success": false,
+                      "error": "The server encountered a problem and could not process your request"
+                    }
+                  },
+                  "no_active_fiscal_year": {
+                    "summary": "No active fiscal-year configuration found",
+                    "value": {
+                      "success": false,
+                      "error": "No active fiscal year configuration found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compare": {
+      "post": {
+        "tags": [
+          "Calculations"
+        ],
+        "summary": "Compare 2 to 10 compensation packages",
+        "description": "Runs the same calculation as `/api/v1/calculate` for each package in `packages` (2 to 10 items), and additionally reports the `best_package` — the one with the highest `yearly_net` (total annual net compensation). Useful for comparing a traditional `sueldos_salarios` offer against a `resico` freelance arrangement, or two competing job offers.",
+        "operationId": "comparePackages",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The request body is decoded strictly: any unknown or misspelled JSON field is rejected with HTTP 400 (`{\"success\": false, \"error\": \"body contains unknown key \\\"<name>\\\"\"}`).",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              },
+              "example": {
+                "packages": [
+                  {
+                    "name": "Empleo tradicional",
+                    "salary": 50000,
+                    "regime": "sueldos_salarios",
+                    "currency": "MXN",
+                    "payment_frequency": "monthly",
+                    "has_aguinaldo": true,
+                    "has_prima_vacacional": true
+                  },
+                  {
+                    "name": "Freelance RESICO",
+                    "salary": 30000,
+                    "regime": "resico",
+                    "currency": "MXN",
+                    "payment_frequency": "monthly"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calculation succeeded for all packages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "results": [
+                      {
+                        "name": "Empleo tradicional",
+                        "regime": "sueldos_salarios",
+                        "currency": "MXN",
+                        "exchange_rate": 17.5,
+                        "payment_frequency": "monthly",
+                        "gross_salary": 50000,
+                        "net_salary": 39333.01,
+                        "isr_tax": 9466.99,
+                        "subsidio_empleo": 0,
+                        "imss_worker": 1200,
+                        "sbc": 1725.82,
+                        "yearly_gross_base": 600000,
+                        "yearly_gross": 753028.26,
+                        "yearly_net": 494247.23,
+                        "monthly_adjusted": 41187.27,
+                        "breakdown": {
+                          "aguinaldo_gross": 24671.05,
+                          "aguinaldo_isr": 6383.06,
+                          "aguinaldo_net": 18287.99,
+                          "prima_vacacional_gross": 4934.21,
+                          "prima_vacacional_isr": 971.09,
+                          "prima_vacacional_net": 3963.12,
+                          "vales_despensa_monthly": 0,
+                          "fondo_ahorro_employee_monthly": 0,
+                          "fondo_ahorro_yearly": 0,
+                          "other_benefits_monthly_net": 0,
+                          "infonavit_employer_monthly": 2623.25,
+                          "infonavit_employer_annual": 31479,
+                          "imss_employer_monthly": 7662,
+                          "imss_employer_annual": 91944,
+                          "has_infonavit_credit": false,
+                          "unpaid_vacation_days": 0,
+                          "unpaid_vacation_loss": 0
+                        },
+                        "other_benefits": [],
+                        "equity": null
+                      },
+                      {
+                        "name": "Freelance RESICO",
+                        "regime": "resico",
+                        "currency": "MXN",
+                        "exchange_rate": 17.5,
+                        "payment_frequency": "monthly",
+                        "gross_salary": 30000,
+                        "net_salary": 29670,
+                        "isr_tax": 330,
+                        "subsidio_empleo": 0,
+                        "imss_worker": 0,
+                        "sbc": 0,
+                        "yearly_gross_base": 360000,
+                        "yearly_gross": 360000,
+                        "yearly_net": 356040,
+                        "monthly_adjusted": 29670,
+                        "breakdown": {
+                          "aguinaldo_gross": 0,
+                          "aguinaldo_isr": 0,
+                          "aguinaldo_net": 0,
+                          "prima_vacacional_gross": 0,
+                          "prima_vacacional_isr": 0,
+                          "prima_vacacional_net": 0,
+                          "vales_despensa_monthly": 0,
+                          "fondo_ahorro_employee_monthly": 0,
+                          "fondo_ahorro_yearly": 0,
+                          "other_benefits_monthly_net": 0,
+                          "infonavit_employer_monthly": 0,
+                          "infonavit_employer_annual": 0,
+                          "imss_employer_monthly": 0,
+                          "imss_employer_annual": 0,
+                          "has_infonavit_credit": false,
+                          "unpaid_vacation_days": 0,
+                          "unpaid_vacation_loss": 0
+                        },
+                        "other_benefits": [],
+                        "equity": null
+                      }
+                    ],
+                    "best_package": {
+                      "index": 0,
+                      "name": "Empleo tradicional",
+                      "yearly_net": 494247.23
+                    }
+                  },
+                  "meta": {
+                    "fiscal_year": 2025,
+                    "uma_daily": 113.14,
+                    "uma_monthly": 3439.46,
+                    "usd_mxn_rate": 17.5
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be processed. Either the JSON body was malformed, `packages` did not contain between 2 and 10 items, one or more package fields failed validation (`details` lists every problem, prefixed with the package's position e.g. `packages[1].salary`), or a package's salary falls outside the RESICO brackets configured for the active fiscal year.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GenericErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation_failed": {
+                    "summary": "One or more fields are invalid",
+                    "value": {
+                      "success": false,
+                      "error": "Validation failed",
+                      "details": [
+                        {
+                          "field": "packages[1].salary",
+                          "message": "must be greater than 0"
+                        },
+                        {
+                          "field": "packages[1].other_benefits[0].name",
+                          "message": "is required"
+                        }
+                      ]
+                    }
+                  },
+                  "wrong_package_count": {
+                    "summary": "packages has fewer than 2 or more than 10 items",
+                    "value": {
+                      "success": false,
+                      "error": "Validation failed",
+                      "details": [
+                        {
+                          "field": "packages",
+                          "message": "must contain between 2 and 10 packages"
+                        }
+                      ]
+                    }
+                  },
+                  "malformed_json": {
+                    "summary": "Body is not valid JSON",
+                    "value": {
+                      "success": false,
+                      "error": "body contains badly-formed JSON (at character 12)"
+                    }
+                  },
+                  "unknown_field": {
+                    "summary": "Body contains an unknown or misspelled field (strict decoding)",
+                    "value": {
+                      "success": false,
+                      "error": "body contains unknown key \"salery\""
+                    }
+                  },
+                  "resico_out_of_range": {
+                    "summary": "A package's salary is outside the supported RESICO brackets",
+                    "value": {
+                      "success": false,
+                      "error": "salary is outside the supported RESICO brackets for the active fiscal year"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key. Returned when the `Authorization` header is absent, is not in the `Bearer <token>` format, or the key does not match any account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericErrorResponse"
+                },
+                "examples": {
+                  "missing_header": {
+                    "summary": "No Authorization header",
+                    "value": {
+                      "success": false,
+                      "error": "Missing Authorization header. Use: Authorization: Bearer YOUR_API_KEY"
+                    }
+                  },
+                  "invalid_format": {
+                    "summary": "Header not in 'Bearer <token>' format",
+                    "value": {
+                      "success": false,
+                      "error": "Invalid Authorization format. Use: Authorization: Bearer YOUR_API_KEY"
+                    }
+                  },
+                  "invalid_key": {
+                    "summary": "Unknown or revoked API key",
+                    "value": {
+                      "success": false,
+                      "error": "Invalid API key"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. Accounts with an unverified email are limited to 10 calls/day; accounts with a verified email are limited to 100 calls/month (Hobby plan).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DailyLimitErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MonthlyLimitErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "daily_limit_unverified": {
+                    "summary": "Unverified account: 10/day exceeded",
+                    "value": {
+                      "success": false,
+                      "error": "Daily API limit exceeded",
+                      "message": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month.",
+                      "limit": 10,
+                      "used": 10,
+                      "type": "unverified_user",
+                      "action": "Please verify your email to increase your limit."
+                    }
+                  },
+                  "monthly_limit_verified": {
+                    "summary": "Verified account: 100/month exceeded",
+                    "value": {
+                      "success": false,
+                      "error": "Monthly API limit exceeded",
+                      "message": "You have reached the Hobby plan limit of 100 API calls this month. Contact hola@totalcomp.mx about the Pro plan for higher limits.",
+                      "limit": 100,
+                      "used": 100,
+                      "type": "verified_user",
+                      "action": "Contact hola@totalcomp.mx to upgrade your plan."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error (including recovered panics), or the server has no active fiscal-year configuration. 500 responses on /api/v1 paths are always JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericErrorResponse"
+                },
+                "examples": {
+                  "server_error": {
+                    "summary": "Unexpected server error or panic",
+                    "value": {
+                      "success": false,
+                      "error": "The server encountered a problem and could not process your request"
+                    }
+                  },
+                  "no_active_fiscal_year": {
+                    "summary": "No active fiscal-year configuration found",
+                    "value": {
+                      "success": false,
+                      "error": "No active fiscal year configuration found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Get this OpenAPI specification",
+        "description": "Returns this OpenAPI 3.1 document describing the public TotalComp MX API contract. Public endpoint; no API key required.",
+        "operationId": "getOpenAPISpec",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document, as JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "This OpenAPI document."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API key",
+        "description": "API key issued from the developer dashboard, sent as `Authorization: Bearer YOUR_API_KEY`. Missing, malformed, or unknown keys return HTTP 401 with a JSON error body."
+      }
+    },
+    "schemas": {
+      "OtherBenefitRequest": {
+        "type": "object",
+        "description": "A custom benefit not otherwise modeled by the API (e.g. a meal card, life insurance premium, or a signing bonus). Up to 20 items are allowed per package.",
+        "required": [
+          "name",
+          "amount"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Label for the benefit. Required, non-empty.",
+            "example": "Seguro de gastos medicos mayores"
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000,
+            "description": "Value of the benefit. Must be greater than 0. When `is_percentage` is true, interpreted as a percentage of gross annual salary and must be between 0 and 100 (exclusive of 0, inclusive of 100). When `is_percentage` is false, interpreted as a currency amount and must not exceed 1,000,000,000.",
+            "example": 1500
+          },
+          "tax_free": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the benefit is exempt from ISR. When false, ISR is withheld on the benefit's value."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "MXN",
+              "USD"
+            ],
+            "default": "MXN",
+            "description": "Currency the benefit amount is denominated in. USD amounts are converted with the package's `exchange_rate`."
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "annual"
+            ],
+            "default": "monthly",
+            "description": "How often the benefit is paid. Ignored (forced to `annual`) when `is_percentage` is true."
+          },
+          "is_percentage": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, `amount` is a percentage (0-100) of gross annual salary rather than a currency value, and `cadence` is always treated as `annual`."
+          }
+        }
+      },
+      "PackageRequest": {
+        "type": "object",
+        "description": "One compensation package to calculate. Only `salary` and `regime` are required; every other field has a default that mirrors the TotalComp MX web calculator.",
+        "required": [
+          "salary",
+          "regime"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the package. If omitted, defaults to \"Paquete 1\" for /calculate, or \"Paquete N\" (1-based position) for each item sent to /compare.",
+            "example": "Oferta A"
+          },
+          "salary": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000000,
+            "description": "Salary as entered by the user, in `currency` at `payment_frequency` (e.g. a monthly MXN salary, or an hourly USD rate). Must be greater than 0 and no more than 1,000,000,000.",
+            "example": 50000
+          },
+          "regime": {
+            "type": "string",
+            "enum": [
+              "sueldos_salarios",
+              "resico",
+              "sueldos"
+            ],
+            "description": "Payroll tax regime. `sueldos_salarios` is the traditional employed-worker regime (ISR asalariados + IMSS). `resico` is the Regimen Simplificado de Confianza, a simplified regime with its own ISR bracket table and no IMSS. `sueldos` is accepted as an alias for `sueldos_salarios` and normalized automatically. Required; omitting it or sending any other value returns a validation error.",
+            "example": "sueldos_salarios"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "MXN",
+              "USD"
+            ],
+            "default": "MXN",
+            "description": "Currency `salary` (and any USD `other_benefits`) is denominated in. When `USD`, amounts are converted to MXN using `exchange_rate` before any tax calculation."
+          },
+          "exchange_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "MXN per USD. If omitted or 0, defaults to the active fiscal year's official USD/MXN exchange rate. Must not be negative and must not exceed 10000.",
+            "example": 17.5
+          },
+          "payment_frequency": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "biweekly",
+              "weekly",
+              "daily",
+              "hourly"
+            ],
+            "default": "monthly",
+            "description": "Frequency at which `salary` is entered. The API always normalizes this to a monthly MXN gross amount before computing taxes and contributions."
+          },
+          "hours_per_week": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 168,
+            "default": 40,
+            "description": "Hours worked per week. Only used when `payment_frequency` is `hourly`; ignored otherwise. If omitted or 0, defaults to 40. When provided, must be between 1 and 168."
+          },
+          "has_aguinaldo": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the package includes aguinaldo, the legally mandated year-end Christmas bonus."
+          },
+          "aguinaldo_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 365,
+            "default": 15,
+            "description": "Days of salary paid as aguinaldo. Only applied when `has_aguinaldo` is true. If omitted, defaults to the legal minimum of 15 days. An explicit 0 is honored. When provided, must be between 0 and 365."
+          },
+          "has_vales_despensa": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the package includes vales de despensa (grocery vouchers)."
+          },
+          "vales_despensa_amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Monthly grocery-voucher amount in MXN. Required and must be greater than 0 when `has_vales_despensa` is true; ignored otherwise. Exempt portion is capped at one monthly UMA.",
+            "example": 0
+          },
+          "has_prima_vacacional": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the package includes prima vacacional, the vacation premium paid on top of vacation days."
+          },
+          "vacation_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 365,
+            "default": 12,
+            "description": "Annual vacation days used to compute prima vacacional. Only applied when `has_prima_vacacional` is true. If omitted, defaults to the legal minimum of 12 days. An explicit 0 is honored. When provided, must be between 0 and 365."
+          },
+          "prima_vacacional_percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100,
+            "default": 25,
+            "description": "Prima vacacional rate as a percentage of the vacation days' wages. Only applied when `has_prima_vacacional` is true. If omitted, defaults to the legal minimum of 25%. An explicit 0 is honored. When provided, must be between 0 and 100."
+          },
+          "has_fondo_ahorro": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the package includes a fondo de ahorro (employee savings fund)."
+          },
+          "fondo_ahorro_percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100,
+            "default": 13,
+            "description": "Employee contribution to the fondo de ahorro, as a percentage of salary. Only applied when `has_fondo_ahorro` is true. If omitted, defaults to 13%. An explicit 0 is honored. When provided, must be between 0 and 100. The employer match returned in the response (`fondo_ahorro_yearly`) is twice the employee's annual contribution."
+          },
+          "has_infonavit_credit": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the employee has an active Infonavit housing-credit deduction. Reflected in the response's `has_infonavit_credit` flag and the employer Infonavit contribution figures."
+          },
+          "unpaid_vacation_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365,
+            "default": 0,
+            "description": "RESICO only: days taken off without pay during the year, reducing income accordingly. Must be between 0 and 365. Sending a value greater than 0 when `regime` is not `resico` returns a validation error (\"only applies to the resico regime\")."
+          },
+          "other_benefits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OtherBenefitRequest"
+            },
+            "maxItems": 20,
+            "default": [],
+            "description": "Additional custom benefits beyond aguinaldo, prima vacacional, fondo de ahorro and vales de despensa. Maximum 20 items."
+          },
+          "has_equity": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the package includes an equity grant. When true, `initial_equity_usd` is required."
+          },
+          "initial_equity_usd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000000,
+            "description": "Initial equity grant value in USD, vested evenly over 4 years. Required and must be greater than 0 and must not exceed 1,000,000,000 when `has_equity` is true; ignored otherwise.",
+            "example": 0
+          },
+          "has_refreshers": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether annual refresher equity grants are included. Only considered when `has_equity` is true; requires `refresher_min_usd` and `refresher_max_usd`."
+          },
+          "refresher_min_usd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000000,
+            "description": "Lower bound of the annual refresher grant range, in USD. Required and must be greater than 0 and must not exceed 1,000,000,000 when `has_refreshers` is true. Automatically swapped with `refresher_max_usd` if it is larger.",
+            "example": 0
+          },
+          "refresher_max_usd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000000,
+            "description": "Upper bound of the annual refresher grant range, in USD. Required and must be greater than 0 and must not exceed 1,000,000,000 when `has_refreshers` is true. Automatically swapped with `refresher_min_usd` if it is smaller.",
+            "example": 0
+          }
+        }
+      },
+      "CompareRequest": {
+        "type": "object",
+        "required": [
+          "packages"
+        ],
+        "properties": {
+          "packages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageRequest"
+            },
+            "minItems": 2,
+            "maxItems": 10,
+            "description": "The compensation packages to compare, between 2 and 10 items."
+          }
+        }
+      },
+      "Breakdown": {
+        "type": "object",
+        "description": "Detailed yearly and monthly components behind the package totals.",
+        "properties": {
+          "aguinaldo_gross": {
+            "type": "number",
+            "description": "Gross aguinaldo amount for the year."
+          },
+          "aguinaldo_isr": {
+            "type": "number",
+            "description": "ISR withheld on the aguinaldo (the portion exceeding 30 UMA is taxable)."
+          },
+          "aguinaldo_net": {
+            "type": "number",
+            "description": "Net aguinaldo after ISR."
+          },
+          "prima_vacacional_gross": {
+            "type": "number",
+            "description": "Gross prima vacacional amount for the year."
+          },
+          "prima_vacacional_isr": {
+            "type": "number",
+            "description": "ISR withheld on the prima vacacional (the portion exceeding 15 UMA is taxable)."
+          },
+          "prima_vacacional_net": {
+            "type": "number",
+            "description": "Net prima vacacional after ISR."
+          },
+          "vales_despensa_monthly": {
+            "type": "number",
+            "description": "Monthly grocery-voucher amount added to net salary (exempt portion capped at one monthly UMA)."
+          },
+          "fondo_ahorro_employee_monthly": {
+            "type": "number",
+            "description": "Employee's monthly contribution to the fondo de ahorro."
+          },
+          "fondo_ahorro_yearly": {
+            "type": "number",
+            "description": "What the employer returns for the year: twice the employee's annual fondo de ahorro contribution."
+          },
+          "other_benefits_monthly_net": {
+            "type": "number",
+            "description": "Combined monthly net value of all `other_benefits` (monthly-cadence benefits, plus 1/12 of annual ones)."
+          },
+          "infonavit_employer_monthly": {
+            "type": "number",
+            "description": "Employer's monthly Infonavit housing contribution: 5% of the capped SBC (Salario Base de Cotizacion)."
+          },
+          "infonavit_employer_annual": {
+            "type": "number",
+            "description": "Employer's annual Infonavit contribution (monthly figure x 12)."
+          },
+          "imss_employer_monthly": {
+            "type": "number",
+            "description": "Total employer-side monthly IMSS contributions (enfermedad y maternidad, invalidez y vida, cesantia y vejez, retiro, guarderias, riesgo de trabajo, etc.)."
+          },
+          "imss_employer_annual": {
+            "type": "number",
+            "description": "Total employer-side annual IMSS contributions (monthly figure x 12)."
+          },
+          "has_infonavit_credit": {
+            "type": "boolean",
+            "description": "Echoes the request's `has_infonavit_credit` flag."
+          },
+          "unpaid_vacation_days": {
+            "type": "integer",
+            "description": "RESICO only: unpaid vacation days used in this calculation."
+          },
+          "unpaid_vacation_loss": {
+            "type": "number",
+            "description": "RESICO only: income lost due to unpaid vacation days."
+          }
+        }
+      },
+      "OtherBenefitResult": {
+        "type": "object",
+        "description": "Calculated result for one item from the request's `other_benefits` array.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Value as entered in the request (currency amount, or percentage of gross annual salary when `is_percentage` was true)."
+          },
+          "tax_free": {
+            "type": "boolean"
+          },
+          "isr": {
+            "type": "number",
+            "description": "ISR withheld on this benefit (0 when `tax_free` is true)."
+          },
+          "net": {
+            "type": "number",
+            "description": "Net value of the benefit after ISR."
+          },
+          "cadence": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "annual"
+            ],
+            "description": "How often the benefit is paid; percentage-based benefits are always `annual`."
+          }
+        }
+      },
+      "EquityYear": {
+        "type": "object",
+        "description": "Vesting activity for a single year of the 4-year schedule (year 0 is grant date, with nothing vested yet).",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "Year index, from 0 (grant date) to 4."
+          },
+          "initial_grant_vested_usd": {
+            "type": "number",
+            "description": "Amount vested this year from the initial grant, in USD."
+          },
+          "refresher_total_usd": {
+            "type": "number",
+            "description": "Total amount vested this year across all refresher grants, in USD."
+          },
+          "new_refresher_granted_usd": {
+            "type": "number",
+            "description": "New refresher grant awarded this year (starts vesting the following year), in USD."
+          },
+          "total_vested_usd": {
+            "type": "number",
+            "description": "Total equity vested this year (initial grant + refreshers), in USD."
+          },
+          "total_vested_mxn": {
+            "type": "number",
+            "description": "Total equity vested this year, converted to MXN using the package's exchange rate."
+          }
+        }
+      },
+      "Equity": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "Present only when the request set `has_equity` to true; otherwise null. Describes a standard 4-year vesting schedule.",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "initial_grant_usd": {
+                "type": "number"
+              },
+              "has_refreshers": {
+                "type": "boolean"
+              },
+              "refresher_min_usd": {
+                "type": "number"
+              },
+              "refresher_max_usd": {
+                "type": "number"
+              },
+              "vesting_years": {
+                "type": "integer",
+                "description": "Always 4."
+              },
+              "exchange_rate": {
+                "type": "number",
+                "description": "MXN per USD rate used to convert vested amounts."
+              }
+            }
+          },
+          "schedule": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquityYear"
+            },
+            "description": "5 entries: year 0 (grant date) through year 4 (fully vested)."
+          }
+        }
+      },
+      "PackageData": {
+        "type": "object",
+        "description": "Full calculation result for one compensation package.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Package name, echoing the request (or the generated default)."
+          },
+          "regime": {
+            "type": "string",
+            "enum": [
+              "sueldos_salarios",
+              "resico"
+            ],
+            "description": "Normalized payroll regime used for the calculation."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "MXN",
+              "USD"
+            ],
+            "description": "Currency the original salary was entered in."
+          },
+          "exchange_rate": {
+            "type": "number",
+            "description": "MXN per USD rate actually used (as provided, or the fiscal year default)."
+          },
+          "payment_frequency": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "biweekly",
+              "weekly",
+              "daily",
+              "hourly"
+            ]
+          },
+          "gross_salary": {
+            "type": "number",
+            "description": "Gross salary normalized to a monthly MXN amount (after currency conversion and payment-frequency normalization)."
+          },
+          "net_salary": {
+            "type": "number",
+            "description": "Monthly net salary after ISR withholding and the employee's IMSS contribution."
+          },
+          "isr_tax": {
+            "type": "number",
+            "description": "Monthly ISR (Impuesto Sobre la Renta) withheld under the applicable regime's rate table."
+          },
+          "subsidio_empleo": {
+            "type": "number",
+            "description": "Monthly Subsidio para el Empleo tax credit applied against ISR (always 0 under RESICO)."
+          },
+          "imss_worker": {
+            "type": "number",
+            "description": "Monthly employee-side IMSS (Instituto Mexicano del Seguro Social) contribution (always 0 under RESICO)."
+          },
+          "sbc": {
+            "type": "number",
+            "description": "Salario Base de Cotizacion (SBC): the monthly base used to compute IMSS and Infonavit contributions, capped per the active fiscal year's UMA rules."
+          },
+          "yearly_gross_base": {
+            "type": "number",
+            "description": "Base annual gross salary (monthly gross_salary x 12), excluding aguinaldo, prima vacacional and other benefits."
+          },
+          "yearly_gross": {
+            "type": "number",
+            "description": "Total annual gross compensation, including aguinaldo, prima vacacional, fondo de ahorro, vales de despensa, and other benefits."
+          },
+          "yearly_net": {
+            "type": "number",
+            "description": "Total annual net (take-home) compensation."
+          },
+          "monthly_adjusted": {
+            "type": "number",
+            "description": "Monthly net salary plus one-twelfth of the yearly one-off benefits, useful for a monthly total-comp comparison."
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/Breakdown"
+          },
+          "other_benefits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OtherBenefitResult"
+            }
+          },
+          "equity": {
+            "$ref": "#/components/schemas/Equity"
+          }
+        }
+      },
+      "Meta": {
+        "type": "object",
+        "description": "Fiscal-year parameters used for this calculation.",
+        "properties": {
+          "fiscal_year": {
+            "type": "integer",
+            "description": "Active fiscal year whose ISR brackets, IMSS rates, RESICO brackets and UMA values were used.",
+            "example": 2025
+          },
+          "uma_daily": {
+            "type": "number",
+            "description": "Daily UMA (Unidad de Medida y Actualizacion) value in MXN for the active fiscal year.",
+            "example": 113.14
+          },
+          "uma_monthly": {
+            "type": "number",
+            "description": "Monthly UMA value in MXN for the active fiscal year.",
+            "example": 3439.46
+          },
+          "usd_mxn_rate": {
+            "type": "number",
+            "description": "Default USD/MXN exchange rate for the active fiscal year, used whenever a request omits `exchange_rate`.",
+            "example": 17.5
+          }
+        }
+      },
+      "BestPackage": {
+        "type": "object",
+        "description": "The package with the highest `yearly_net` among those compared.",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "0-based index of the winning package within the request's `packages` array."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the winning package."
+          },
+          "yearly_net": {
+            "type": "number",
+            "description": "The winning package's total annual net compensation."
+          }
+        }
+      },
+      "CalculateResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/PackageData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "CompareResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PackageData"
+                },
+                "description": "One result per requested package, in the same order as `packages` in the request."
+              },
+              "best_package": {
+                "$ref": "#/components/schemas/BestPackage"
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Name of the offending field. For /compare, prefixed with the package's position, e.g. `packages[1].salary`."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable explanation of the problem."
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "description": "Returned when one or more request fields fail validation. All problems are reported at once.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "Validation failed"
+            ]
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          }
+        }
+      },
+      "GenericErrorResponse": {
+        "type": "object",
+        "description": "Generic error envelope used for malformed requests, authentication failures, and unexpected server errors.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          }
+        }
+      },
+      "DailyLimitErrorResponse": {
+        "type": "object",
+        "description": "Returned when an account with an unverified email exceeds 10 API calls in a day.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "Daily API limit exceeded"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "example": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month."
+          },
+          "limit": {
+            "type": "integer",
+            "enum": [
+              10
+            ]
+          },
+          "used": {
+            "type": "integer",
+            "description": "Number of API calls already made today."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "unverified_user"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "example": "Please verify your email to increase your limit."
+          }
+        }
+      },
+      "MonthlyLimitErrorResponse": {
+        "type": "object",
+        "description": "Returned when an account with a verified email exceeds 100 API calls in a calendar month (Hobby plan).",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "Monthly API limit exceeded"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "example": "You have reached the Hobby plan limit of 100 API calls this month. Contact hola@totalcomp.mx about the Pro plan for higher limits."
+          },
+          "limit": {
+            "type": "integer",
+            "enum": [
+              100
+            ]
+          },
+          "used": {
+            "type": "integer",
+            "description": "Number of API calls already made this calendar month."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "verified_user"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "example": "Contact hola@totalcomp.mx to upgrade your plan."
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}
