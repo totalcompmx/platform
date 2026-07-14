@@ -17,10 +17,11 @@ type dataStore interface {
 	GetUser(id int) (database.User, bool, error)
 	GetUserByEmail(email string) (database.User, bool, error)
 	UpdateUserHashedPassword(id int, hashedPassword string) error
-	UpdateUserAPIKey(id int, apiKey string) error
-	GetUserByAPIKey(apiKey string) (database.User, bool, error)
+	UpdateUserAPIKey(id int, hashedAPIKey, apiKeyPrefix string) error
+	GetUserByAPIKey(hashedAPIKey string) (database.User, bool, error)
 	IncrementAPICallsCount(id int) error
 	GetDailyAPICallCount(userID int) (int, error)
+	GetMonthlyAPICallCount(userID int) (int, error)
 	LogAPICall(userID int) error
 	InsertEmailVerificationToken(userID int, hashedToken string) error
 	GetUserIDFromVerificationToken(hashedToken string) (int, bool, error)

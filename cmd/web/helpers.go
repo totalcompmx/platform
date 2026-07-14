@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 
@@ -57,6 +59,7 @@ func (app *application) recoverBackgroundTask(r *http.Request) {
 }
 
 // generateSecureAPIKey generates a cryptographically secure random API key
+// with a recognizable "tc_" prefix.
 func (app *application) generateSecureAPIKey() (string, error) {
 	// Generate 32 random bytes
 	b := make([]byte, 32)
@@ -65,9 +68,23 @@ func (app *application) generateSecureAPIKey() (string, error) {
 		return "", err
 	}
 
-	// Encode to base64 URL-safe format and remove padding
+	// Encode to base64 URL-safe format; 43 characters carry the full 32 bytes.
 	apiKey := base64.URLEncoding.EncodeToString(b)
 
-	// Return first 43 characters (standard for 32-byte base64)
-	return apiKey[:43], nil
+	return "tc_" + apiKey[:43], nil
+}
+
+// hashAPIKey returns the SHA-256 hex digest under which a key is stored.
+func hashAPIKey(apiKey string) string {
+	digest := sha256.Sum256([]byte(apiKey))
+	return hex.EncodeToString(digest[:])
+}
+
+// apiKeyPrefix returns the leading characters of a key, safe to display in the
+// dashboard after the plaintext key is gone.
+func apiKeyPrefix(apiKey string) string {
+	if len(apiKey) < 8 {
+		return apiKey
+	}
+	return apiKey[:8]
 }

@@ -13,6 +13,7 @@ type User struct {
 	Email           string         `db:"email"`
 	HashedPassword  string         `db:"hashed_password"`
 	ApiKey          sql.NullString `db:"api_key"`
+	ApiKeyPrefix    sql.NullString `db:"api_key_prefix"`
 	ApiCallsCount   int            `db:"api_calls_count"`
 	ApiKeyCreatedAt sql.NullTime   `db:"api_key_created_at"`
 	EmailVerified   bool           `db:"email_verified"`
@@ -56,23 +57,24 @@ func (db *DB) UpdateUserHashedPassword(id int, hashedPassword string) error {
 	return err
 }
 
-// UpdateUserAPIKey updates or creates an API key for a user
-func (db *DB) UpdateUserAPIKey(id int, apiKey string) error {
+// UpdateUserAPIKey updates or creates an API key for a user. Only the SHA-256
+// hash of the key is stored, plus a short display prefix for the dashboard.
+func (db *DB) UpdateUserAPIKey(id int, hashedAPIKey, apiKeyPrefix string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	query := `
-		UPDATE users 
-		SET api_key = $1, api_key_created_at = $2 
-		WHERE id = $3`
+		UPDATE users
+		SET api_key = $1, api_key_prefix = $2, api_key_created_at = $3
+		WHERE id = $4`
 
-	_, err := db.ExecContext(ctx, query, apiKey, time.Now(), id)
+	_, err := db.ExecContext(ctx, query, hashedAPIKey, apiKeyPrefix, time.Now(), id)
 	return err
 }
 
-// GetUserByAPIKey retrieves a user by their API key
-func (db *DB) GetUserByAPIKey(apiKey string) (User, bool, error) {
-	return db.userByQuery(`SELECT * FROM users WHERE api_key = $1`, apiKey)
+// GetUserByAPIKey retrieves a user by the SHA-256 hash of their API key
+func (db *DB) GetUserByAPIKey(hashedAPIKey string) (User, bool, error) {
+	return db.userByQuery(`SELECT * FROM users WHERE api_key = $1`, hashedAPIKey)
 }
 
 func (db *DB) userByQuery(query string, args ...any) (User, bool, error) {
@@ -115,6 +117,24 @@ func (db *DB) GetDailyAPICallCount(userID int) (int, error) {
 		FROM api_call_logs 
 		WHERE user_id = $1 
 		AND created_at >= CURRENT_DATE`
+
+	err := db.GetContext(ctx, &count, query, userID)
+	return count, err
+}
+
+// GetMonthlyAPICallCount returns how many API calls a user has made in the
+// current calendar month. This enforces the verified-user limit (100/month).
+func (db *DB) GetMonthlyAPICallCount(userID int) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	var count int
+
+	query := `
+		SELECT COUNT(*)
+		FROM api_call_logs
+		WHERE user_id = $1
+		AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`
 
 	err := db.GetContext(ctx, &count, query, userID)
 	return count, err

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
 	"github.com/jcroyoaun/totalcompmx/internal/database"
 )
+
+// errNoRESICOBracket signals that the income falls outside the configured
+// RESICO brackets; the API maps it to a 400 instead of a server error.
+var errNoRESICOBracket = errors.New("no RESICO bracket found")
 
 // calculateRESICO performs RESICO regime calculation (flat rate, no IMSS, no subsidio)
 func (app *application) calculateRESICO(
@@ -45,7 +50,7 @@ func (app *application) resicoBracket(fiscalYearID int, monthlyIncome float64) (
 		return database.RESICOBracket{}, err
 	}
 	if !found {
-		return database.RESICOBracket{}, fmt.Errorf("no RESICO bracket found for income %.2f", monthlyIncome)
+		return database.RESICOBracket{}, fmt.Errorf("%w for income %.2f", errNoRESICOBracket, monthlyIncome)
 	}
 	return resicoBracket, nil
 }

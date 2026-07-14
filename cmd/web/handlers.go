@@ -313,11 +313,11 @@ func (payload homePostPayload) hasValidPackage() bool {
 	return false
 }
 
-func (payload homePostPayload) salary(index int) (homePackageSalary, bool) {
+func (payload homePostPayload) salary(index int, defaultExchangeRate float64) (homePackageSalary, bool) {
 	salary := homePackageSalary{
 		Original:     indexedValue(payload.salaries, index, ""),
 		Currency:     indexedValue(payload.currencies, index, "MXN"),
-		ExchangeRate: parseFloat(indexedValue(payload.exchangeRates, index, ""), 20.0),
+		ExchangeRate: parseFloat(indexedValue(payload.exchangeRates, index, ""), defaultExchangeRate),
 		PaymentFreq:  indexedValue(payload.paymentFrequencies, index, "monthly"),
 		HoursPerWeek: indexedValue(payload.hoursPerWeek, index, ""),
 	}
@@ -378,31 +378,35 @@ func (payload homePostPayload) otherBenefit(packageIndex, benefitIndex int, name
 	}, true
 }
 
-func (payload homePostPayload) equity(index int, fiscalYear database.FiscalYear) (*equity.EquityConfig, []equity.YearlyEquity) {
-	initialEquity := parseFloat(indexedValue(payload.initialEquityUSD, index, ""), 0)
-	if initialEquity <= 0 {
-		return nil, nil
+// packageSpec converts one parsed form package into the canonical calculation
+// input shared with the JSON API.
+func (payload homePostPayload) packageSpec(index int, name string, regime string, salary homePackageSalary, benefits homeBenefits, otherBenefits []OtherBenefit) packageSpec {
+	return packageSpec{
+		Name:                   name,
+		Regime:                 regime,
+		Salary:                 parseFloat(salary.Original, 0),
+		Currency:               salary.Currency,
+		ExchangeRate:           salary.ExchangeRate,
+		PaymentFrequency:       salary.PaymentFreq,
+		HoursPerWeek:           parseFloat(salary.HoursPerWeek, 40.0),
+		HasAguinaldo:           benefits.HasAguinaldo,
+		AguinaldoDays:          benefits.AguinaldoDays,
+		HasValesDespensa:       benefits.HasValesDespensa,
+		ValesDespensaAmount:    benefits.ValesAmount,
+		HasPrimaVacacional:     benefits.HasPrimaVacacional,
+		VacationDays:           benefits.VacationDays,
+		PrimaVacacionalPercent: benefits.PrimaPercent,
+		HasFondoAhorro:         benefits.HasFondoAhorro,
+		FondoAhorroPercent:     benefits.FondoPercent,
+		HasInfonavitCredit:     benefits.HasInfonavit,
+		UnpaidVacationDays:     benefits.UnpaidVacationDays,
+		OtherBenefits:          otherBenefits,
+		HasEquity:              containsIndex(payload.hasEquity, index),
+		InitialEquityUSD:       parseFloat(indexedValue(payload.initialEquityUSD, index, ""), 0),
+		HasRefreshers:          containsIndex(payload.hasRefreshers, index),
+		RefresherMinUSD:        parseFloat(indexedValue(payload.refresherMinUSD, index, ""), 0),
+		RefresherMaxUSD:        parseFloat(indexedValue(payload.refresherMaxUSD, index, ""), 0),
 	}
-	hasRefresh, refresherMin, refresherMax := payload.refreshers(index)
-	config := equity.EquityConfig{
-		InitialGrantUSD: initialEquity,
-		HasRefreshers:   hasRefresh && refresherMin > 0 && refresherMax > 0,
-		RefresherMinUSD: refresherMin,
-		RefresherMaxUSD: refresherMax,
-		VestingYears:    4,
-		ExchangeRate:    fiscalYear.USDMXNRate,
-	}
-	schedule := equity.CalculateEquitySchedule(config, 4)
-	return &config, schedule
-}
-
-func (payload homePostPayload) refreshers(index int) (bool, float64, float64) {
-	refresherMin := parseFloat(indexedValue(payload.refresherMinUSD, index, ""), 0)
-	refresherMax := parseFloat(indexedValue(payload.refresherMaxUSD, index, ""), 0)
-	if refresherMin > refresherMax {
-		refresherMin, refresherMax = refresherMax, refresherMin
-	}
-	return containsIndex(payload.hasRefreshers, index), refresherMin, refresherMax
 }
 
 func (payload homePostPayload) packageInput(index int, name string, salary homePackageSalary, benefits homeBenefits, otherBenefits []OtherBenefit) PackageInput {
@@ -455,38 +459,20 @@ func (app *application) addHomePackage(results *homeBuildResults, payload homePo
 }
 
 func (app *application) buildHomePackage(payload homePostPayload, fiscalYear database.FiscalYear, index int) (PackageResult, PackageInput, bool, error) {
-	salary, ok := payload.salary(index)
+	salary, ok := payload.salary(index, fiscalYear.USDMXNRate)
 	if !ok {
 		return PackageResult{}, PackageInput{}, false, nil
 	}
 	regime := indexedValue(payload.regimes, index, "sueldos_salarios")
 	benefits := payload.benefits(index, regime)
 	otherBenefits := payload.otherBenefits(index)
-	calculation, err := app.calculateHomePackage(regime, salary, benefits, otherBenefits, fiscalYear)
+	name := indexedValue(payload.packageNames, index, fmt.Sprintf("Paquete %d", index+1))
+	spec := payload.packageSpec(index, name, regime, salary, benefits, otherBenefits)
+	result, err := app.calculatePackage(spec, fiscalYear)
 	if err != nil {
 		return PackageResult{}, PackageInput{}, false, err
 	}
-	name := indexedValue(payload.packageNames, index, fmt.Sprintf("Paquete %d", index+1))
-	equityConfig, equitySchedule := payload.equity(index, fiscalYear)
-	result := PackageResult{name, &calculation, equityConfig, equitySchedule}
 	return result, payload.packageInput(index, name, salary, benefits, otherBenefits), true, nil
-}
-
-func (app *application) calculateHomePackage(regime string, salary homePackageSalary, benefits homeBenefits, otherBenefits []OtherBenefit, fiscalYear database.FiscalYear) (database.SalaryCalculation, error) {
-	if regime == "resico" {
-		return app.calculateRESICO(salary.Monthly, benefits.UnpaidVacationDays, otherBenefits, salary.ExchangeRate, fiscalYear)
-	}
-	return app.calculateSalaryWithBenefits(
-		salary.Monthly,
-		benefits.HasAguinaldo, benefits.AguinaldoDays,
-		benefits.HasValesDespensa, benefits.ValesAmount,
-		benefits.HasPrimaVacacional, benefits.VacationDays, benefits.PrimaPercent,
-		benefits.HasFondoAhorro, benefits.FondoPercent,
-		benefits.HasInfonavit,
-		otherBenefits,
-		salary.ExchangeRate,
-		fiscalYear,
-	)
 }
 
 func (results *homeBuildResults) add(result PackageResult, input PackageInput) {
@@ -1106,8 +1092,19 @@ func (app *application) accountDeveloper(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	monthlyCalls, err := app.db.GetMonthlyAPICallCount(user.ID)
+	if err != nil {
+		app.serverError(w, r, err)
+		return
+	}
+
 	data := app.newTemplateData(r)
 	data["User"] = user
+	data["MonthlyCallsUsed"] = monthlyCalls
+	data["MonthlyCallsLimit"] = apiMonthlyLimitVerified
+	if newAPIKey := app.sessionManager.PopString(r.Context(), "newAPIKey"); newAPIKey != "" {
+		data["NewAPIKey"] = newAPIKey
+	}
 	app.renderPage(w, r, http.StatusOK, data, "pages/developer.tmpl")
 }
 
@@ -1141,21 +1138,21 @@ func (app *application) generateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := authenticatedUser.ID
 
-	// Generate a secure random API key (32 characters)
 	apiKey, err := app.generateSecureAPIKey()
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
 
-	// Store the API key in the database (plain text for now, could hash later)
-	err = app.db.UpdateUserAPIKey(userID, apiKey)
+	// Only the hash is persisted; the plaintext key is shown to the user once
+	// (via the session) and never stored.
+	err = app.db.UpdateUserAPIKey(userID, hashAPIKey(apiKey), apiKeyPrefix(apiKey))
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
 
-	// Redirect back to developer dashboard
+	app.sessionManager.Put(r.Context(), "newAPIKey", apiKey)
 	http.Redirect(w, r, "/account/developer", http.StatusSeeOther)
 }
 
@@ -1266,138 +1263,8 @@ func (app *application) flashAndRedirect(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
-type apiCalculateRequest struct {
-	Salary                 float64 `json:"salary"`
-	Regime                 string  `json:"regime"`
-	HasAguinaldo           bool    `json:"has_aguinaldo"`
-	AguinaldoDays          int     `json:"aguinaldo_days"`
-	HasValesDespensa       bool    `json:"has_vales_despensa"`
-	ValesDespensaAmount    float64 `json:"vales_despensa_amount"`
-	HasPrimaVacacional     bool    `json:"has_prima_vacacional"`
-	VacationDays           int     `json:"vacation_days"`
-	PrimaVacacionalPercent float64 `json:"prima_vacacional_percent"`
-	HasFondoAhorro         bool    `json:"has_fondo_ahorro"`
-	FondoAhorroPercent     float64 `json:"fondo_ahorro_percent"`
-	UnpaidVacationDays     int     `json:"unpaid_vacation_days"`
-}
-
-// apiCalculate is the main API endpoint for salary calculations (JSON API)
-func (app *application) apiCalculate(w http.ResponseWriter, r *http.Request) {
-	req, ok := app.readAPICalculateRequest(w, r)
-	if !ok {
-		return
-	}
-
-	fiscalYear, ok := app.activeFiscalYearJSON(w, r)
-	if !ok {
-		return
-	}
-
-	result, ok := app.apiSalaryCalculation(w, r, req, fiscalYear)
-	if !ok {
-		return
-	}
-
-	app.writeAPICalculateResponse(w, r, req, result, fiscalYear)
-}
-
-func (app *application) readAPICalculateRequest(w http.ResponseWriter, r *http.Request) (apiCalculateRequest, bool) {
-	var req apiCalculateRequest
-	if err := request.DecodeJSON(w, r, &req); err != nil {
-		app.writeJSONError(w, r, http.StatusBadRequest, "Invalid JSON request body")
-		return apiCalculateRequest{}, false
-	}
-
-	if req.Salary <= 0 {
-		app.writeJSONError(w, r, http.StatusBadRequest, "Salary must be greater than 0")
-		return apiCalculateRequest{}, false
-	}
-
-	return req, true
-}
-
-func (app *application) activeFiscalYearJSON(w http.ResponseWriter, r *http.Request) (database.FiscalYear, bool) {
-	fiscalYear, err := app.activeFiscalYear()
-	if err != nil {
-		if errors.Is(err, errNoActiveFiscalYear) {
-			app.writeJSONError(w, r, http.StatusInternalServerError, "No active fiscal year configuration found")
-			return database.FiscalYear{}, false
-		}
-		app.serverError(w, r, err)
-		return database.FiscalYear{}, false
-	}
-
-	return fiscalYear, true
-}
-
-func (app *application) apiSalaryCalculation(w http.ResponseWriter, r *http.Request, req apiCalculateRequest, fiscalYear database.FiscalYear) (database.SalaryCalculation, bool) {
-	result, err := app.runAPISalaryCalculation(req, fiscalYear)
-	if err != nil {
-		app.serverError(w, r, err)
-		return database.SalaryCalculation{}, false
-	}
-
-	return result, true
-}
-
-func (app *application) runAPISalaryCalculation(req apiCalculateRequest, fiscalYear database.FiscalYear) (database.SalaryCalculation, error) {
-	if req.Regime == "resico" {
-		return app.calculateRESICO(req.Salary, req.UnpaidVacationDays, []OtherBenefit{}, 1.0, fiscalYear)
-	}
-
-	return app.calculateSalaryWithBenefits(
-		req.Salary,
-		req.HasAguinaldo, req.AguinaldoDays,
-		req.HasValesDespensa, req.ValesDespensaAmount,
-		req.HasPrimaVacacional, req.VacationDays, req.PrimaVacacionalPercent,
-		req.HasFondoAhorro, req.FondoAhorroPercent,
-		false,
-		[]OtherBenefit{},
-		1.0,
-		fiscalYear,
-	)
-}
-
-func (app *application) writeAPICalculateResponse(w http.ResponseWriter, r *http.Request, req apiCalculateRequest, result database.SalaryCalculation, fiscalYear database.FiscalYear) {
-	jsonResponse := map[string]interface{}{
-		"success": true,
-		"data": map[string]interface{}{
-			"regime":            req.Regime,
-			"gross_salary":      result.GrossSalary,
-			"net_salary":        result.NetSalary,
-			"isr_tax":           result.ISRTax,
-			"subsidio_empleo":   result.SubsidioEmpleo,
-			"imss_worker":       result.IMSSWorker,
-			"sbc":               result.SBC,
-			"yearly_gross_base": result.YearlyGrossBase,
-			"yearly_gross":      result.YearlyGross,
-			"yearly_net":        result.YearlyNet,
-			"monthly_adjusted":  result.MonthlyAdjusted,
-			"breakdown": map[string]interface{}{
-				"aguinaldo_gross":           result.AguinaldoGross,
-				"aguinaldo_isr":             result.AguinaldoISR,
-				"aguinaldo_net":             result.AguinaldoNet,
-				"prima_vacacional_gross":    result.PrimaVacacionalGross,
-				"prima_vacacional_isr":      result.PrimaVacacionalISR,
-				"prima_vacacional_net":      result.PrimaVacacionalNet,
-				"fondo_ahorro_yearly":       result.FondoAhorroYearly,
-				"infonavit_employer_annual": result.InfonavitEmployerAnnual,
-				"imss_employer_annual":      result.IMSSEmployerAnnual,
-			},
-		},
-		"meta": map[string]interface{}{
-			"fiscal_year": fiscalYear.Year,
-			"uma_monthly": fiscalYear.UMAMonthly,
-		},
-	}
-
-	if err := responseJSON(w, http.StatusOK, jsonResponse); err != nil {
-		app.serverError(w, r, err)
-	}
-}
-
 func (app *application) writeJSONError(w http.ResponseWriter, r *http.Request, status int, message string) {
-	if err := responseJSON(w, status, map[string]string{"error": message}); err != nil {
+	if err := responseJSON(w, status, map[string]any{"success": false, "error": message}); err != nil {
 		app.serverError(w, r, err)
 	}
 }

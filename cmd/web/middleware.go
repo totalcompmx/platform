@@ -175,6 +175,36 @@ func (app *application) validBasicAuthPassword(plaintextPassword string) (bool, 
 	}
 }
 
+const (
+	apiDailyLimitUnverified = 10
+	apiMonthlyLimitVerified = 100
+)
+
+// apiCORS allows browser-based clients to call the public API from any origin.
+// It is registered on the top-level mux (with a path guard) so CORS headers
+// also reach flow's 404/405 fallback handlers, and it answers preflight
+// requests itself so they never need an API key.
+func (app *application) apiCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isAPIRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // requireAPIKey validates the API key in the Authorization header (stateless)
 func (app *application) requireAPIKey(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +213,6 @@ func (app *application) requireAPIKey(next http.Handler) http.Handler {
 			return
 		}
 
-		app.recordAPIUsage(r, user.ID)
 		next.ServeHTTP(w, contextSetAuthenticatedUser(r, user))
 	})
 }
@@ -198,6 +227,12 @@ func (app *application) authenticatedAPIUser(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return database.User{}, false
 	}
+
+	// Log the call before checking the quota so the count includes this
+	// request, narrowing the window where concurrent requests slip past the
+	// limit (a check-then-log order lets bursts overshoot it).
+	app.recordAPIUsage(r, user.ID)
+
 	if !app.allowAPIRequest(w, r, user) {
 		return database.User{}, false
 	}
@@ -215,7 +250,7 @@ func (app *application) requestAPIKey(w http.ResponseWriter, r *http.Request) (s
 }
 
 func (app *application) apiUserForKey(w http.ResponseWriter, r *http.Request, apiKey string) (database.User, bool) {
-	user, found, err := app.db.GetUserByAPIKey(apiKey)
+	user, found, err := app.db.GetUserByAPIKey(hashAPIKey(apiKey))
 	if err != nil {
 		app.serverError(w, r, err)
 		return database.User{}, false
@@ -247,7 +282,7 @@ func bearerAPIKey(r *http.Request) (string, string) {
 
 func (app *application) allowAPIRequest(w http.ResponseWriter, r *http.Request, user database.User) bool {
 	if user.EmailVerified {
-		return true
+		return app.allowVerifiedAPIRequest(w, r, user)
 	}
 
 	dailyCount, err := app.db.GetDailyAPICallCount(user.ID)
@@ -255,8 +290,22 @@ func (app *application) allowAPIRequest(w http.ResponseWriter, r *http.Request, 
 		app.serverError(w, r, err)
 		return false
 	}
-	if dailyCount >= 10 {
+	if dailyCount > apiDailyLimitUnverified {
 		app.writeAPIRateLimitError(w, r, dailyCount)
+		return false
+	}
+
+	return true
+}
+
+func (app *application) allowVerifiedAPIRequest(w http.ResponseWriter, r *http.Request, user database.User) bool {
+	monthlyCount, err := app.db.GetMonthlyAPICallCount(user.ID)
+	if err != nil {
+		app.serverError(w, r, err)
+		return false
+	}
+	if monthlyCount > apiMonthlyLimitVerified {
+		app.writeAPIMonthlyLimitError(w, r, monthlyCount)
 		return false
 	}
 
@@ -265,12 +314,28 @@ func (app *application) allowAPIRequest(w http.ResponseWriter, r *http.Request, 
 
 func (app *application) writeAPIRateLimitError(w http.ResponseWriter, r *http.Request, dailyCount int) {
 	err := responseJSON(w, http.StatusTooManyRequests, map[string]any{
+		"success": false,
 		"error":   "Daily API limit exceeded",
-		"message": "You have reached your daily limit of 10 API calls. Verify your email to unlock 100 calls/month.",
-		"limit":   10,
+		"message": fmt.Sprintf("You have reached your daily limit of %d API calls. Verify your email to unlock %d calls/month.", apiDailyLimitUnverified, apiMonthlyLimitVerified),
+		"limit":   apiDailyLimitUnverified,
 		"used":    dailyCount,
 		"type":    "unverified_user",
 		"action":  "Please verify your email to increase your limit.",
+	})
+	if err != nil {
+		app.serverError(w, r, err)
+	}
+}
+
+func (app *application) writeAPIMonthlyLimitError(w http.ResponseWriter, r *http.Request, monthlyCount int) {
+	err := responseJSON(w, http.StatusTooManyRequests, map[string]any{
+		"success": false,
+		"error":   "Monthly API limit exceeded",
+		"message": fmt.Sprintf("You have reached the Hobby plan limit of %d API calls this month. Contact hola@totalcomp.mx about the Pro plan for higher limits.", apiMonthlyLimitVerified),
+		"limit":   apiMonthlyLimitVerified,
+		"used":    monthlyCount,
+		"type":    "verified_user",
+		"action":  "Contact hola@totalcomp.mx to upgrade your plan.",
 	})
 	if err != nil {
 		app.serverError(w, r, err)

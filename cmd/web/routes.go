@@ -12,19 +12,26 @@ func (app *application) routes() http.Handler {
 	mux := flow.New()
 	mux.NotFound = http.HandlerFunc(app.notFound)
 
-	// Global middleware for ALL routes
+	// Global middleware for ALL routes. apiCORS lives here (path-guarded to
+	// /api/) so CORS headers also reach flow's 404/405 fallbacks and its
+	// automatic OPTIONS handling, which skip group-level middleware.
 	mux.Use(app.logAccess)
 	mux.Use(app.recoverPanic)
 	mux.Use(app.securityHeaders)
+	mux.Use(app.apiCORS)
 
 	fileServer := http.FileServer(http.FS(assets.EmbeddedFiles))
 	mux.Handle("/static/...", fileServer, "GET")
 
-	// API routes - NO CSRF, NO SESSION (stateless)
+	// API routes - NO CSRF, NO SESSION (stateless). Preflight OPTIONS never
+	// reaches these handlers; apiCORS answers it at the top level.
+	mux.HandleFunc("/api/v1/openapi.json", app.apiOpenAPISpec, "GET")
+
 	mux.Group(func(mux *flow.Mux) {
 		mux.Use(app.requireAPIKey)
 
 		mux.HandleFunc("/api/v1/calculate", app.apiCalculate, "POST")
+		mux.HandleFunc("/api/v1/compare", app.apiCompare, "POST")
 	})
 
 	// Web routes - WITH session, CSRF, and authentication
