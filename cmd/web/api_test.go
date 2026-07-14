@@ -352,6 +352,9 @@ func TestAPIHonorsExplicitZeroBenefitValues(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 	assert.True(t, strings.Contains(res.Body, `"aguinaldo_gross": 0`))
 
+	// Wait for the background usage-count goroutine before reusing the store.
+	app.wg.Wait()
+
 	req = jsonAPIRequest(t, `{"salary":30000,"regime":"sueldos_salarios","has_aguinaldo":true}`)
 	res = send(t, req, app.routes())
 	assert.Equal(t, res.StatusCode, http.StatusOK)
@@ -387,6 +390,188 @@ func TestAPIWrongMethodStillGetsCORSAndJSON(t *testing.T) {
 	assert.Equal(t, res.StatusCode, http.StatusMethodNotAllowed)
 	assert.Equal(t, res.Header.Get("Access-Control-Allow-Origin"), "*")
 }
+
+func TestAPIValidationEdgeCases(t *testing.T) {
+	tooManyBenefits := `[` + strings.Repeat(`{"name":"b","amount":1},`, 20) + `{"name":"b","amount":1}]`
+
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+		wantWord   string
+	}{
+		{"salary above cap", `{"salary":2000000000,"regime":"resico"}`, 400, "must not exceed"},
+		{"negative exchange rate", `{"salary":100,"regime":"resico","exchange_rate":-1}`, 400, "must not be negative"},
+		{"excessive exchange rate", `{"salary":100,"regime":"resico","exchange_rate":20000}`, 400, "must not exceed 10000"},
+		{"hourly defaults hours to 40", `{"salary":100,"regime":"sueldos_salarios","payment_frequency":"hourly"}`, 200, `"payment_frequency": "hourly"`},
+		{"hourly with explicit hours", `{"salary":100,"regime":"sueldos_salarios","payment_frequency":"hourly","hours_per_week":30}`, 200, `"success": true`},
+		{"hourly with impossible hours", `{"salary":100,"regime":"sueldos_salarios","payment_frequency":"hourly","hours_per_week":200}`, 400, "hours_per_week"},
+		{"unpaid days out of range", `{"salary":100,"regime":"resico","unpaid_vacation_days":400}`, 400, "between 0 and 365"},
+		{"aguinaldo days out of range", `{"salary":100,"regime":"sueldos_salarios","has_aguinaldo":true,"aguinaldo_days":400}`, 400, "aguinaldo_days"},
+		{"prima percent out of range", `{"salary":100,"regime":"sueldos_salarios","has_prima_vacacional":true,"prima_vacacional_percent":150}`, 400, "prima_vacacional_percent"},
+		{"too many other benefits", `{"salary":100,"regime":"resico","other_benefits":` + tooManyBenefits + `}`, 400, "must not contain more than 20"},
+		{"invalid benefit cadence", `{"salary":100,"regime":"resico","other_benefits":[{"name":"b","amount":1,"cadence":"weekly"}]}`, 400, "cadence"},
+		{"percentage benefit above 100", `{"salary":100,"regime":"resico","other_benefits":[{"name":"b","amount":150,"is_percentage":true}]}`, 400, "between 0 and 100 when is_percentage"},
+		{"benefit amount above cap", `{"salary":100,"regime":"resico","other_benefits":[{"name":"b","amount":2000000000}]}`, 400, "must not exceed"},
+		{"refreshers without amounts", `{"salary":100,"regime":"sueldos_salarios","has_equity":true,"initial_equity_usd":1000,"has_refreshers":true}`, 400, "refresher_min_usd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := apiTestApplication(t)
+			res := send(t, jsonAPIRequest(t, tt.body), app.routes())
+
+			assert.Equal(t, res.StatusCode, tt.wantStatus)
+			assert.True(t, strings.Contains(res.Body, tt.wantWord))
+		})
+	}
+}
+
+func TestAPICalculateSerializesBenefitsAndEquity(t *testing.T) {
+	app := apiTestApplication(t)
+	body := `{
+		"salary": 50000, "regime": "sueldos_salarios",
+		"other_benefits": [
+			{"name": "Bono", "amount": 1000, "cadence": "monthly"},
+			{"name": "Utilidades", "amount": 10, "is_percentage": true, "tax_free": true}
+		],
+		"has_equity": true, "initial_equity_usd": 20000,
+		"has_refreshers": true, "refresher_min_usd": 5000, "refresher_max_usd": 10000
+	}`
+
+	res := send(t, jsonAPIRequest(t, body), app.routes())
+
+	assert.Equal(t, res.StatusCode, http.StatusOK)
+	assert.True(t, strings.Contains(res.Body, `"name": "Bono"`))
+	assert.True(t, strings.Contains(res.Body, `"cadence": "annual"`))
+	assert.True(t, strings.Contains(res.Body, `"initial_grant_usd": 20000`))
+	assert.True(t, strings.Contains(res.Body, `"total_vested_mxn"`))
+}
+
+func TestAPICompareErrorBranches(t *testing.T) {
+	t.Run("malformed JSON body", func(t *testing.T) {
+		app := apiTestApplication(t)
+		res := send(t, jsonAPIRequestPath(t, "/api/v1/compare", `{"packages":`), app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+	})
+
+	t.Run("missing fiscal year", func(t *testing.T) {
+		app := apiTestApplication(t)
+		app.db.(*fakeStore).activeFiscalFound = false
+		body := `{"packages":[{"salary":100,"regime":"resico"},{"salary":200,"regime":"resico"}]}`
+
+		res := send(t, jsonAPIRequestPath(t, "/api/v1/compare", body), app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	})
+
+	t.Run("calculation error mid-comparison", func(t *testing.T) {
+		app := apiTestApplication(t)
+		app.db.(*fakeStore).resicoFound = false
+		body := `{"packages":[{"salary":100,"regime":"sueldos_salarios"},{"salary":200,"regime":"resico"}]}`
+
+		res := send(t, jsonAPIRequestPath(t, "/api/v1/compare", body), app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusBadRequest)
+		assert.True(t, strings.Contains(res.Body, "RESICO"))
+	})
+}
+
+func TestAPICalculateServerErrorIsJSON(t *testing.T) {
+	app := apiTestApplication(t)
+	app.db.(*fakeStore).errors["GetISRBrackets"] = fmt.Errorf("brackets exploded")
+
+	res := send(t, jsonAPIRequest(t, `{"salary":100,"regime":"sueldos_salarios"}`), app.routes())
+
+	assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	assert.True(t, strings.Contains(res.Body, `"success": false`))
+}
+
+func TestAPINotFoundIsJSON(t *testing.T) {
+	app := newTestApplication(t)
+	res := send(t, newTestRequest(t, http.MethodGet, "/api/v1/nope"), app.routes())
+
+	assert.Equal(t, res.StatusCode, http.StatusNotFound)
+	assert.True(t, strings.Contains(res.Body, "could not be found"))
+	assert.Equal(t, res.Header.Get("Access-Control-Allow-Origin"), "*")
+}
+
+func TestAPIOpenAPISpecErrorBranches(t *testing.T) {
+	t.Run("missing embedded spec", func(t *testing.T) {
+		app := newTestApplication(t)
+		original := openAPISpecFile
+		openAPISpecFile = "static/api/does-not-exist.json"
+		defer func() { openAPISpecFile = original }()
+
+		res := send(t, newTestRequest(t, http.MethodGet, "/api/v1/openapi.json"), app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	})
+
+	t.Run("write failure is logged", func(t *testing.T) {
+		app := newTestApplication(t)
+		app.apiOpenAPISpec(failingSpecWriter{}, newTestRequest(t, http.MethodGet, "/api/v1/openapi.json"))
+	})
+}
+
+func TestAccountDeveloperNewKeyAndErrors(t *testing.T) {
+	t.Run("shows the freshly generated key once", func(t *testing.T) {
+		app := newTestApplication(t)
+		session := newTestSession(t, app.sessionManager, map[string]any{
+			"authenticatedUserID": testUsers["alice"].id,
+			"newAPIKey":           "tc_freshly-generated-key",
+		})
+		req := newTestRequest(t, http.MethodGet, "/account/developer")
+		req.AddCookie(session.cookie)
+
+		res := send(t, req, app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+		assert.True(t, strings.Contains(res.Body, "tc_freshly-generated-key"))
+	})
+
+	t.Run("monthly count failure surfaces as server error", func(t *testing.T) {
+		app := newTestApplication(t)
+		app.db.(*fakeStore).errors["GetMonthlyAPICallCount"] = fmt.Errorf("count failed")
+		session := newTestSession(t, app.sessionManager, map[string]any{
+			"authenticatedUserID": testUsers["alice"].id,
+		})
+		req := newTestRequest(t, http.MethodGet, "/account/developer")
+		req.AddCookie(session.cookie)
+
+		res := send(t, req, app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	})
+}
+
+func TestAPIMonthlyQuotaErrorBranches(t *testing.T) {
+	t.Run("monthly count lookup failure", func(t *testing.T) {
+		app := apiTestApplication(t)
+		app.db.(*fakeStore).errors["GetMonthlyAPICallCount"] = fmt.Errorf("count failed")
+
+		res := send(t, jsonAPIRequest(t, `{"salary":100,"regime":"resico"}`), app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusInternalServerError)
+	})
+
+	t.Run("monthly limit error write failure", func(t *testing.T) {
+		app := newTestApplication(t)
+		restore := stubResponseJSON(func(http.ResponseWriter, int, any) error {
+			return fmt.Errorf("json failed")
+		})
+		defer restore()
+
+		app.writeAPIMonthlyLimitError(nilResponseWriter{}, newTestRequest(t, http.MethodGet, "/api/v1/calculate"), 100)
+	})
+}
+
+type failingSpecWriter struct{}
+
+func (failingSpecWriter) Header() http.Header        { return http.Header{} }
+func (failingSpecWriter) Write([]byte) (int, error)  { return 0, fmt.Errorf("write failed") }
+func (failingSpecWriter) WriteHeader(statusCode int) {}
 
 func intPtr(v int) *int           { return &v }
 func floatPtr(v float64) *float64 { return &v }

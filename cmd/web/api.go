@@ -553,9 +553,11 @@ func (app *application) writeAPIValidationError(w http.ResponseWriter, r *http.R
 	}
 }
 
+var openAPISpecFile = "static/api/openapi.json"
+
 // apiOpenAPISpec serves the machine-readable API contract.
 func (app *application) apiOpenAPISpec(w http.ResponseWriter, r *http.Request) {
-	spec, err := assets.EmbeddedFiles.ReadFile("static/api/openapi.json")
+	spec, err := assets.EmbeddedFiles.ReadFile(openAPISpecFile)
 	if err != nil {
 		app.serverError(w, r, err)
 		return
