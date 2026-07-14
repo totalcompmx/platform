@@ -132,6 +132,7 @@ func TestUserQueries(t *testing.T) {
 	t.Run("get user by API key", testGetUserByAPIKeyQuery)
 	t.Run("increment API call count", testIncrementAPICallsCountQuery)
 	t.Run("daily API call count", testDailyAPICallCountQuery)
+	t.Run("monthly API call count", testMonthlyAPICallCountQuery)
 	t.Run("log API call", testLogAPICallQuery)
 	t.Run("insert verification token", testInsertVerificationTokenQuery)
 	t.Run("get user ID from verification token", testGetUserIDFromVerificationTokenQuery)
@@ -236,7 +237,7 @@ func testUpdateUserPasswordQuery(t *testing.T) {
 }
 
 func testUpdateUserAPIKeyQuery(t *testing.T) {
-	err := newFakeDB(t, &fakeSQL{}).UpdateUserAPIKey(123, "key")
+	err := newFakeDB(t, &fakeSQL{}).UpdateUserAPIKey(123, "hashed-key", "tc_abcde")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,6 +259,13 @@ func testDailyAPICallCountQuery(t *testing.T) {
 	count, err := newFakeDB(t, &fakeSQL{}).GetDailyAPICallCount(123)
 	if err != nil || count != 7 {
 		t.Fatalf("GetDailyAPICallCount count=%d err=%v", count, err)
+	}
+}
+
+func testMonthlyAPICallCountQuery(t *testing.T) {
+	count, err := newFakeDB(t, &fakeSQL{}).GetMonthlyAPICallCount(123)
+	if err != nil || count != 7 {
+		t.Fatalf("GetMonthlyAPICallCount count=%d err=%v", count, err)
 	}
 }
 

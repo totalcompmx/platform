@@ -356,7 +356,7 @@ func markUserVerified(t *testing.T, app *application, id int) {
 
 func apiTestApplication(t *testing.T) *application {
 	app := newTestApplication(t)
-	err := app.db.UpdateUserAPIKey(testUsers["alice"].id, "api-key")
+	err := app.db.UpdateUserAPIKey(testUsers["alice"].id, hashAPIKey("api-key"), apiKeyPrefix("api-key"))
 	if err != nil {
 		t.Fatal(err)
 	}

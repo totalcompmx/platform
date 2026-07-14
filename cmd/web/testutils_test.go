@@ -254,7 +254,7 @@ func (s *fakeStore) UpdateUserHashedPassword(id int, hashedPassword string) erro
 	return nil
 }
 
-func (s *fakeStore) UpdateUserAPIKey(id int, apiKey string) error {
+func (s *fakeStore) UpdateUserAPIKey(id int, hashedAPIKey, apiKeyPrefix string) error {
 	if err := s.errors["UpdateUserAPIKey"]; err != nil {
 		return err
 	}
@@ -262,18 +262,19 @@ func (s *fakeStore) UpdateUserAPIKey(id int, apiKey string) error {
 	if !found {
 		return sql.ErrNoRows
 	}
-	user.ApiKey = sql.NullString{String: apiKey, Valid: true}
+	user.ApiKey = sql.NullString{String: hashedAPIKey, Valid: true}
+	user.ApiKeyPrefix = sql.NullString{String: apiKeyPrefix, Valid: true}
 	user.ApiKeyCreatedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	s.users[id] = user
 	return nil
 }
 
-func (s *fakeStore) GetUserByAPIKey(apiKey string) (database.User, bool, error) {
+func (s *fakeStore) GetUserByAPIKey(hashedAPIKey string) (database.User, bool, error) {
 	if err := s.errors["GetUserByAPIKey"]; err != nil {
 		return database.User{}, false, err
 	}
 	for _, user := range s.users {
-		if user.ApiKey.Valid && user.ApiKey.String == apiKey {
+		if user.ApiKey.Valid && user.ApiKey.String == hashedAPIKey {
 			return user, true, nil
 		}
 	}
@@ -295,6 +296,13 @@ func (s *fakeStore) IncrementAPICallsCount(id int) error {
 
 func (s *fakeStore) GetDailyAPICallCount(userID int) (int, error) {
 	if err := s.errors["GetDailyAPICallCount"]; err != nil {
+		return 0, err
+	}
+	return s.apiCallCounts[userID], nil
+}
+
+func (s *fakeStore) GetMonthlyAPICallCount(userID int) (int, error) {
+	if err := s.errors["GetMonthlyAPICallCount"]; err != nil {
 		return 0, err
 	}
 	return s.apiCallCounts[userID], nil
