@@ -46,7 +46,8 @@ RUN apk --no-cache add \
     nss \
     freetype \
     harfbuzz \
-    ttf-freefont
+    ttf-freefont \
+    ttf-dejavu
 
 # Set Chrome environment variables for headless operation
 ENV CHROME_BIN=/usr/bin/chromium-browser \

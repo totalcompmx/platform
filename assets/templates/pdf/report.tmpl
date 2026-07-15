@@ -2,623 +2,613 @@
 
 {{define "pdf:document"}}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-MX">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TotalComp MX - Reporte Comparativo</title>
-    <style>
-        /* Reset & Base */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<title>TotalComp MX — {{template "pdf:heading-text" .}}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'DejaVu Sans', Arial, sans-serif;
+    color: #0f172a;
+    font-size: 11px;
+    line-height: 1.35;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #f8fafc;
+  }
 
-        @page {
-            {{template "pdf:page-layout" .}}
-        }
+  @page { size: 297mm 210mm; margin: 0; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            font-size: 10pt;
-            line-height: 1.4;
-            color: #1e293b;
-            background: #ffffff;
-            position: relative;
-        }
+  svg.icon { width: 13px; height: 13px; stroke: currentColor; stroke-width: 1.75; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; vertical-align: middle; }
 
-        /* Watermark */
-        body::before {
-            content: 'TotalComp MX';
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 120pt;
-            font-weight: 900;
-            color: rgba(16, 185, 129, 0.03);
-            z-index: -1;
-            white-space: nowrap;
-        }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #10b981;
-        }
+  /* ============ PAGE ============ */
+  .page {
+    width: 297mm;
+    height: 210mm;
+    padding: 7mm 11mm 6mm;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+  }
+  .page:last-of-type { page-break-after: auto; }
 
-        .logo {
-            font-size: 16pt;
-            font-weight: 800;
-            color: #10b981;
-            letter-spacing: -0.5px;
-        }
+  /* ============ HEADER ============ */
+  .doc-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding-bottom: 5mm;
+    border-bottom: 1.5px solid #059669;
+    margin-bottom: 4mm;
+  }
+  .wordmark { display: flex; align-items: center; gap: 6px; }
+  .wordmark svg.icon { width: 19px; height: 19px; color: #059669; stroke-width: 2; }
+  .wordmark-text { font-size: 19px; font-weight: 700; color: #059669; letter-spacing: -0.01em; }
+  .doc-title { font-size: 11.5px; color: #475569; font-weight: 600; margin-top: 1px; overflow-wrap: break-word; }
+  .doc-header .meta { text-align: right; font-size: 9.5px; color: #475569; flex: none; }
+  .doc-header .meta .line { margin-top: 1px; }
+  .doc-header .meta .folio { color: #0f172a; font-weight: 600; }
 
-        .date {
-            font-size: 8pt;
-            color: #64748b;
-        }
+  /* ============ VERDICT BANNER ============ */
+  .verdict-banner {
+    background: linear-gradient(135deg, #059669, #047857);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 4mm 6mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 8mm;
+    margin-bottom: 4mm;
+    position: relative;
+  }
+  .verdict-banner::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 8%; bottom: 8%;
+    width: 1px;
+    background: rgba(255,255,255,0.28);
+  }
+  .verdict-banner.single { grid-template-columns: 1fr; }
+  .verdict-banner.single::before { display: none; }
+  .verdict-col { display: flex; flex-direction: column; gap: 1.5px; min-width: 0; }
+  .verdict-col .vhead { display: flex; align-items: center; gap: 5px; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .88; font-weight: 600; }
+  .verdict-col .vhead svg.icon { color: #ffffff; width: 12px; height: 12px; }
+  .verdict-col .vwinner { font-size: 16px; font-weight: 700; margin-top: 1px; overflow-wrap: break-word; }
+  .verdict-col .vdetail { font-size: 10px; opacity: .92; }
+  .verdict-col .vdelta { font-size: 10.5px; font-weight: 700; margin-top: 1px; }
+  .verdict-foot { grid-column: 1 / -1; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.28); font-size: 9px; opacity: .92; text-align: center; }
 
-        .title {
-            text-align: center;
-            font-size: 13pt;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 10px;
-        }
+  /* ============ CARD ROW ============ */
+  .cards-row { display: flex; gap: 5mm; flex: 1; align-items: stretch; min-height: 0; }
+  .cards-row.auto { flex: 0 0 auto; }
+  .cards-row.single { justify-content: center; }
+  .cards-row.single .card { flex: 0 0 60%; max-width: 60%; }
+  .cards-row.triple { gap: 4mm; }
+  .cards-row.triple .kpi-row { gap: 1.5mm; }
+  .cards-row.triple .kpi { padding: 1.6mm 2mm; }
+  .cards-row.triple .kpi .k-label { font-size: 7.3px; letter-spacing: 0; }
+  .cards-row.triple .kpi .k-value { font-size: 10.8px; white-space: nowrap; }
+  .cards-row.triple .sec-title { font-size: 8.3px; gap: 3px; letter-spacing: .02em; }
+  .cards-row.triple .two-col { gap: 2mm; }
+  .cards-row.triple .card-title { font-size: 11px; }
+  .cards-row.triple table.desglose { font-size: 9.7px; }
+  .cards-row.triple ul.plain li { font-size: 9px; }
+  .cards-row.wrap2 { flex-wrap: wrap; align-items: flex-start; }
+  .cards-row.wrap2 .card { flex: 0 0 calc(50% - 2.5mm); max-width: calc(50% - 2.5mm); break-inside: avoid; margin-bottom: 4mm; }
+  .card {
+    flex: 1;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .card.winner { border-color: #059669; }
+  .card.runner { border-left: 3px solid #4338ca; }
+  .card.winner { border-left: 3px solid #059669; }
 
-        /* Comparison Grid */
-        .comparison-grid {
-            display: grid;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .comparison-grid.single-mode {
-            grid-template-columns: 1fr;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .comparison-grid.comparison-mode {
-            grid-template-columns: 1fr 1fr;
-        }
+  .card-header {
+    padding: 2.5mm 4mm 2mm;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .card.winner .card-header { background: #ecfdf5; }
+  .card.runner .card-header { background: #ffffff; }
+  .card-title-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .card-title-wrap svg.icon { color: #059669; width: 15px; height: 15px; }
+  .card.runner .card-title-wrap svg.icon { color: #334155; }
+  .card-title { font-size: 12.5px; font-weight: 700; color: #0f172a; overflow-wrap: break-word; }
+  .card-regime { font-size: 9px; color: #475569; font-weight: 500; }
+  .badge {
+    font-size: 9px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    padding: 2.5px 6px; border-radius: 20px; white-space: nowrap; flex: none;
+  }
+  .badge.win { background: #059669; color: #fff; }
+  .badge.alt { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
 
-        /* Package Card */
-        .package-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 10px;
-            break-inside: avoid;
-        }
-        
-        .comparison-grid.single-mode .package-card {
-            padding: 15px;
-        }
+  .card-body { padding: 2.5mm 4mm 3mm; display: flex; flex-direction: column; gap: 2mm; flex: 1; }
 
-        .package-header {
-            text-align: center;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #cbd5e1;
-        }
+  /* KPI tiles */
+  .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+  .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2mm 2.5mm; min-width: 0; }
+  .kpi .k-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .kpi .k-value { font-size: 14.5px; font-weight: 600; color: #0f172a; margin-top: 1.5px; white-space: nowrap; }
 
-        .package-name {
-            font-size: 11pt;
-            font-weight: 700;
-            color: #2563eb;
-            margin-bottom: 2px;
-        }
+  /* section title */
+  .sec-title {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: #059669; margin-bottom: 1.2mm;
+  }
+  .sec-title svg.icon { width: 11px; height: 11px; color: #059669; }
+  .card.runner .sec-title, .card.runner .sec-title svg.icon { color: #334155; }
 
-        .package-regime {
-            font-size: 7.5pt;
-            color: #64748b;
-            font-style: italic;
-        }
+  /* desglose table */
+  table.desglose { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.desglose td { padding: 1.6px 0; vertical-align: baseline; }
+  table.desglose td.lbl { color: #0f172a; }
+  table.desglose td.lbl .sub { display:block; font-size: 9px; color: #94a3b8; font-weight: 400; }
+  table.desglose td.amt { text-align: right; white-space: nowrap; }
+  .amt.neg, .v.neg, .delta.neg { color: #b91c1c; }
+  .amt.pos, .v.pos, .delta.pos { color: #047857; }
+  .amt.zero { color: #94a3b8; }
+  tr.total-row td { border-top: 1.3px solid #0f172a; padding-top: 3px; font-weight: 700; font-size: 11.5px; }
+  .note-line { font-size: 9px; color: #b91c1c; margin-top: 1.5px; }
 
-        /* Key Metrics */
-        .key-metrics {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 6px;
-            margin-bottom: 10px;
-        }
+  /* prestaciones / aportaciones */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  ul.plain { list-style: none; }
+  ul.plain li { font-size: 10.3px; display: flex; justify-content: space-between; gap: 6px; padding: 1.3px 0; color: #0f172a; }
+  ul.plain li .v { text-align: right; white-space: nowrap; }
+  ul.plain li .sub { color: #94a3b8; font-size: 9px; }
 
-        .metric {
-            background: white;
-            padding: 6px 8px;
-            border-radius: 6px;
-            border-left: 3px solid #10b981;
-            text-align: center;
-        }
+  /* mini table (parametros) */
+  table.mini { width: 100%; border-collapse: collapse; font-size: 10px; }
+  table.mini td { padding: 1px 0; vertical-align: top; }
+  table.mini td.k { color: #94a3b8; width: 34%; white-space: nowrap; }
+  table.mini td.v { color: #0f172a; font-weight: 500; }
 
-        .metric-label {
-            font-size: 7pt;
-            color: #64748b;
-            margin-bottom: 2px;
-        }
+  .card-footer-mini { margin-top: auto; padding-top: 1.2mm; border-top: 1px dashed #e2e8f0; }
 
-        .metric-value {
-            font-size: 12pt;
-            font-weight: 700;
-            color: #0f172a;
-        }
+  /* equity table */
+  table.equity { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  table.equity th { text-align: right; font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; padding: 0 0 1.5px; border-bottom: 1px solid #e2e8f0; }
+  table.equity th:first-child, table.equity td:first-child { text-align: left; }
+  table.equity td { text-align: right; padding: 1.3px 0; }
+  table.equity tr.total td { border-top: 1.3px solid #0f172a; font-weight: 700; padding-top: 3px; }
+  .equity-note { font-size: 9px; color: #94a3b8; margin-top: 1mm; }
 
-        .metric.primary {
-            border-left-color: #2563eb;
-        }
+  .filler-note { font-size: 9.3px; color: #475569; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 6px; padding: 2mm 3mm; }
 
-        .metric.primary .metric-value {
-            color: #2563eb;
-        }
+  /* footer band: supuestos + legal */
+  .foot-band { margin-top: 2mm; padding-top: 2mm; border-top: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 1mm; }
+  .supuestos {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 1.5mm 3.5mm; display: flex; align-items: center; gap: 6px;
+    font-size: 9px; color: #475569;
+  }
+  .supuestos svg.icon { color: #4338ca; width: 12px; height: 12px; }
+  .supuestos b { color: #0f172a; }
+  .legal-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; font-size: 9px; color: #94a3b8; }
+  .legal-row .legal-text { flex: 1; text-align: justify; }
+  .legal-row .site { text-align: right; white-space: nowrap; color: #94a3b8; }
 
-        .metric.success {
-            border-left-color: #10b981;
-        }
+  .page2-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5mm; }
+  .page2-header .p2-title { font-size: 12px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; }
+  .page2-header .p2-title svg.icon { color: #059669; width: 14px; height: 14px; }
+  .page2-header .p2-num { font-size: 9px; color: #94a3b8; }
 
-        .metric.success .metric-value {
-            color: #059669;
-        }
-
-        .metric.premium {
-            border-left-color: #8b5cf6;
-        }
-
-        .metric.premium .metric-value {
-            color: #7c3aed;
-        }
-
-        /* Section */
-        .section {
-            margin-bottom: 8px;
-        }
-
-        .section-title {
-            font-size: 9pt;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 5px;
-            padding-left: 6px;
-            border-left: 3px solid #10b981;
-        }
-
-        /* Items List */
-        .items-list {
-            background: white;
-            border-radius: 6px;
-            padding: 5px;
-        }
-
-        .item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 3px 6px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-
-        .item:last-child {
-            border-bottom: none;
-        }
-
-        .item-label {
-            font-size: 7.5pt;
-            color: #475569;
-            flex: 1;
-        }
-
-        .item-value {
-            font-size: 7.5pt;
-            font-weight: 600;
-            text-align: right;
-        }
-
-        .item-value.positive {
-            color: #059669;
-        }
-
-        .item-value.negative {
-            color: #dc2626;
-        }
-
-        .item-value.neutral {
-            color: #0f172a;
-        }
-
-        .item.total {
-            background: #f0fdf4;
-            border-top: 2px solid #10b981;
-            border-bottom: 2px solid #10b981;
-            margin-top: 6px;
-            font-weight: 700;
-        }
-
-        .item.total .item-label {
-            color: #0f172a;
-            font-weight: 700;
-        }
-
-        .item.total .item-value {
-            color: #2563eb;
-            font-size: 10pt;
-        }
-
-        /* Detail Badge */
-        .detail-badge {
-            display: inline-block;
-            font-size: 7pt;
-            color: #64748b;
-            background: #f1f5f9;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
-        }
-
-        /* Tax Free Badge */
-        .tax-free-badge {
-            display: inline-block;
-            font-size: 7pt;
-            color: #059669;
-            background: #d1fae5;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
-            font-weight: 600;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            color: #94a3b8;
-            font-size: 9pt;
-            font-style: italic;
-            padding: 12px;
-        }
-
-        /* Footer */
-        .footer {
-            margin-top: 10px;
-            padding-top: 8px;
-            border-top: 1px solid #e2e8f0;
-            page-break-inside: avoid;
-        }
-
-        .legal-notice {
-            font-size: 6pt;
-            color: #64748b;
-            line-height: 1.3;
-            margin-bottom: 4px;
-            text-align: justify;
-        }
-
-        .footer-brand {
-            text-align: center;
-            font-size: 6.5pt;
-            color: #94a3b8;
-            font-weight: 600;
-        }
-
-        /* Print Optimization */
-        @media print {
-            body {
-                print-color-adjust: exact;
-                -webkit-print-color-adjust: exact;
-            }
-        }
-    </style>
+  /* ============ RESUMEN COMPARATIVO (page 2 recap) ============ */
+  .recap {
+    margin-top: 2mm;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.8mm 5mm;
+  }
+  .recap .sec-title { color: #059669; margin-bottom: 1.5mm; font-size: 10px; }
+  table.recap-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  table.recap-table th {
+    text-align: right; font-size: 9.5px; color: #94a3b8; text-transform: uppercase;
+    letter-spacing: .03em; font-weight: 600; padding: 0 0 1.3mm; border-bottom: 1px solid #e2e8f0;
+  }
+  table.recap-table th:first-child, table.recap-table td:first-child { text-align: left; }
+  table.recap-table td { text-align: right; padding: 0.9mm 0; border-bottom: 1px solid #f1f5f9; overflow-wrap: break-word; }
+  table.recap-table tr:last-child td { border-bottom: none; }
+  table.recap-table td.metric { color: #0f172a; font-weight: 500; text-align: left; }
+  table.recap-table td.metric .sub { display: block; font-size: 8.7px; color: #94a3b8; font-weight: 400; margin-top: 1px; }
+  table.recap-table td.best { font-weight: 700; color: #047857; }
+  tr.recap-highlight td { background: #ecfdf5; font-weight: 700; font-size: 12px; padding-top: 1.6mm; padding-bottom: 1.6mm; }
+  tr.recap-highlight td:first-child { border-radius: 6px 0 0 6px; padding-left: 3mm; }
+  tr.recap-highlight td:last-child { border-radius: 0 6px 6px 0; padding-right: 3mm; }
+</style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="header">
-        <div class="logo">TotalComp MX</div>
-        <div class="date">{{.Date}}</div>
+
+<!-- ICON SPRITE -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-bars" viewBox="0 0 24 24"><line x1="4" y1="20" x2="4" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="20" y1="20" x2="20" y2="4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="8,12.5 11,15.5 16.5,9"/></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/><line x1="3" y1="13" x2="21" y2="13"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><line x1="6" y1="7" x2="18" y2="7"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="6" y1="17" x2="14" y2="17"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8.5" width="18" height="11.5" rx="1"/><line x1="3" y1="12.5" x2="21" y2="12.5"/><line x1="12" y1="8.5" x2="12" y2="20"/><path d="M12 8.5c0-2.2-2-4-3.8-3.6-1.5.3-1.4 3.6 3.8 3.6z"/><path d="M12 8.5c0-2.2 2-4 3.8-3.6 1.5.3 1.4 3.6-3.8 3.6z"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="4,17 10,11 14,15 20,7"/><polyline points="14,7 20,7 20,13"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="1.8"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="1.8"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="1.8"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.6" r=".9" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-coins" viewBox="0 0 24 24"><circle cx="9" cy="9" r="5.2"/><circle cx="15" cy="15" r="5.2"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============================================================ PAGE 1 ============================================================ -->
+<div class="page">
+
+  <div class="doc-header">
+    <div>
+      <div class="wordmark"><svg class="icon"><use href="#i-bars"/></svg><span class="wordmark-text">TotalComp MX</span></div>
+      <div class="doc-title">{{template "pdf:heading-text" .}}</div>
     </div>
-
-    <div class="title">
-        {{template "pdf:title" .}}
+    <div class="meta">
+      <div class="line">{{.Date}}</div>
+      <div class="line folio">Folio {{.Folio}}</div>
     </div>
+  </div>
 
-    <!-- Comparison Grid -->
-    <div class="comparison-grid {{template "pdf:grid-mode" .}}">
-        {{range $idx, $pkg := .Packages}}
-        <div class="package-card">
-            <!-- Package Header -->
-            <div class="package-header">
-                <div class="package-name">{{$pkg.Name}}</div>
-                <div class="package-regime">
-                    {{template "pdf:regime-label" $pkg}}
-                </div>
-            </div>
+  {{if .BestAdjusted}}
+  <div class="verdict-banner{{if not .BestFourYear}} single{{end}}">
+    <div class="verdict-col">
+      <div class="vhead"><svg class="icon"><use href="#i-check"/></svg>Mejor neto mensual ajustado</div>
+      <div class="vwinner">{{.BestAdjusted.Winner}}</div>
+      <div class="vdetail tnum">${{formatFloat .BestAdjusted.WinnerValue 2}} vs ${{formatFloat .BestAdjusted.RunnerValue 2}} &nbsp;({{.BestAdjusted.RunnerUp}})</div>
+      <div class="vdelta tnum">+${{formatFloat .BestAdjusted.Delta 2}} / mes a favor de {{.BestAdjusted.Winner}}</div>
+    </div>
+    {{if .BestFourYear}}
+    <div class="verdict-col">
+      <div class="vhead"><svg class="icon"><use href="#i-trend"/></svg>Mejor compensación a 4 años (incl. equity)</div>
+      <div class="vwinner">{{.BestFourYear.Winner}}</div>
+      <div class="vdetail tnum">${{formatFloat .BestFourYear.WinnerValue 2}} vs ${{formatFloat .BestFourYear.RunnerValue 2}} &nbsp;({{.BestFourYear.RunnerUp}})</div>
+      <div class="vdelta tnum">+${{formatFloat .BestFourYear.Delta 2}} a 4 años a favor de {{.BestFourYear.Winner}}</div>
+    </div>
+    <div class="verdict-foot">{{if eq .BestFourYear.Winner .BestAdjusted.Winner}}{{.BestAdjusted.Winner}} es la mejor opción en ambos horizontes de comparación: neto mensual ajustado y compensación total a 4 años.{{else}}El resultado depende del horizonte de comparación: en el neto mensual ajustado gana {{.BestAdjusted.Winner}}; incorporando el equity acumulado a 4 años, gana {{.BestFourYear.Winner}}.{{end}}</div>
+    {{end}}
+  </div>
+  {{end}}
 
-            <!-- Key Metrics -->
-            <div class="key-metrics">
-                <div class="metric primary">
-                    <div class="metric-label">💰 Neto Mensual</div>
-                    <div class="metric-value">${{formatFloat $pkg.Calculation.NetSalary 2}}</div>
-                </div>
-                <div class="metric success">
-                    <div class="metric-label">📅 Neto Anual</div>
-                    <div class="metric-value">${{formatFloat $pkg.Calculation.YearlyNet 2}}</div>
-                </div>
-                <div class="metric premium">
-                    <div class="metric-label">✨ Neto Mensual Ajustado</div>
-                    <div class="metric-value">${{formatFloat $pkg.Calculation.MonthlyAdjusted 2}}</div>
-                </div>
-            </div>
+  <div class="cards-row {{template "pdf:cards-row-class" .}}">
+    {{$root := .}}
+    {{range .Packages}}
+    {{$isWin := false}}{{if $root.BestAdjusted}}{{if eq .Name $root.BestAdjusted.Winner}}{{$isWin = true}}{{end}}{{end}}
+    {{$isAlt := false}}{{if $root.BestFourYear}}{{if $root.BestAdjusted}}{{if and (eq .Name $root.BestFourYear.Winner) (ne $root.BestFourYear.Winner $root.BestAdjusted.Winner)}}{{$isAlt = true}}{{end}}{{end}}{{end}}
+    <div class="card{{if $isWin}} winner{{else if $root.BestAdjusted}} runner{{end}}">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <svg class="icon"><use href="#i-briefcase"/></svg>
+          <div>
+            <div class="card-title">{{.Name}}</div>
+            <div class="card-regime">Régimen: {{template "pdf:regime-label" .}} · {{if eq .Input.Currency "USD"}}USD{{else}}MXN{{end}}</div>
+          </div>
+        </div>
+        {{if $isWin}}<span class="badge win">Mejor paquete</span>{{else if $isAlt}}<span class="badge alt">Gana a 4 años c/ equity</span>{{end}}
+      </div>
 
-            <!-- Explanation -->
-            <div style="background: #eff6ff; border-left: 2px solid #3b82f6; padding: 4px 6px; border-radius: 4px; margin-bottom: 6px;">
-                <p style="font-size: 6.5pt; color: #1e40af; line-height: 1.3; margin: 0;">
-                    💡 <strong>Neto Mensual Ajustado:</strong> Incluye prestaciones anuales prorrateadas. Mejor métrica para comparar.
-                </p>
-            </div>
+      <div class="card-body">
+        <div class="kpi-row">
+          <div class="kpi"><div class="k-label">Neto Mensual</div><div class="k-value tnum">${{formatFloat .Calculation.NetSalary 2}}</div></div>
+          <div class="kpi"><div class="k-label">Neto Anual</div><div class="k-value tnum">${{formatFloat .Calculation.YearlyNet 2}}</div></div>
+          <div class="kpi"><div class="k-label">Neto Mensual Ajustado</div><div class="k-value tnum">${{formatFloat .Calculation.MonthlyAdjusted 2}}</div></div>
+        </div>
 
-            <!-- Monthly Breakdown -->
-            <div class="section">
-                <div class="section-title">💰 Desglose Mensual</div>
-                <div class="items-list">
-                    {{template "pdf:monthly-breakdown" $pkg}}
-                </div>
-            </div>
+        <div>
+          <div class="sec-title"><svg class="icon"><use href="#i-receipt"/></svg>Desglose mensual</div>
+          {{template "pdf:desglose" .}}
+          {{if gt .Calculation.UnpaidVacationDays 0}}
+          <div class="note-line tnum">Descuento anual por {{.Calculation.UnpaidVacationDays}} días sin goce de sueldo: -${{formatFloat .Calculation.UnpaidVacationLoss 2}} (aplicado al neto anual, no al mensual)</div>
+          {{end}}
+        </div>
 
-            <!-- Annual Benefits -->
-            {{template "pdf:annual-benefits" $pkg}}
+        <div class="two-col">
+          <div>
+            <div class="sec-title"><svg class="icon"><use href="#i-gift"/></svg>Prestaciones anuales</div>
+            <ul class="plain">
+              {{template "pdf:aguinaldo-li" .}}
+              {{template "pdf:prima-li" .}}
+              {{template "pdf:fondo-yearly-li" .}}
+              {{template "pdf:otras-annual-li" .}}
+              {{template "pdf:unpaid-li" .}}
+            </ul>
+          </div>
+          <div>
+            <div class="sec-title"><svg class="icon"><use href="#i-coins"/></svg>Aportaciones patronales</div>
+            <ul class="plain">
+              {{template "pdf:imss-patronal-li" .}}
+              {{template "pdf:infonavit-patronal-li" .}}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
 
-            <!-- Employer Contributions -->
-            {{template "pdf:employer-contributions" $pkg}}
+<!-- ============================================================ PAGE 2 ============================================================ -->
+<div class="page">
+
+  <div class="page2-header">
+    <div class="p2-title"><svg class="icon"><use href="#i-bars"/></svg>TotalComp MX — Equity, parámetros y supuestos</div>
+    <div class="p2-num">Folio {{.Folio}} · Página 2 de 2</div>
+  </div>
+
+  <div class="cards-row auto {{template "pdf:cards-row-class" .}}">
+    {{$root := .}}
+    {{range .Packages}}
+    {{$isWin := false}}{{if $root.BestAdjusted}}{{if eq .Name $root.BestAdjusted.Winner}}{{$isWin = true}}{{end}}{{end}}
+    {{$isAlt := false}}{{if $root.BestFourYear}}{{if $root.BestAdjusted}}{{if and (eq .Name $root.BestFourYear.Winner) (ne $root.BestFourYear.Winner $root.BestAdjusted.Winner)}}{{$isAlt = true}}{{end}}{{end}}{{end}}
+    <div class="card{{if $isWin}} winner{{else if $root.BestAdjusted}} runner{{end}}">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <svg class="icon"><use href="#i-briefcase"/></svg>
+          <div>
+            <div class="card-title">{{.Name}}</div>
+            <div class="card-regime">{{if .Equity}}Equity y parámetros de entrada{{else}}Parámetros de entrada{{end}}</div>
+          </div>
+        </div>
+        {{if $isWin}}<span class="badge win">Mejor paquete</span>{{else if $isAlt}}<span class="badge alt">Gana a 4 años c/ equity</span>{{end}}
+      </div>
+
+      <div class="card-body">
+        {{if .Equity}}
+        <div>
+          <div class="sec-title"><svg class="icon"><use href="#i-trend"/></svg>Equity — calendario de adquisición (vesting)</div>
+          <table class="equity">
+            <tr>
+              <th>Año</th>
+              <th>Grant inicial vested (USD)</th>
+              <th>Refreshers vested (USD)</th>
+              <th>Total vested (USD)</th>
+              <th>Total vested (MXN)</th>
+            </tr>
+            {{range .Equity.Schedule}}
+            <tr><td>Año {{.Year}}</td><td class="tnum">${{formatFloat .InitialVestedUSD 2}}</td><td class="tnum">${{formatFloat .RefresherVestedUSD 2}}</td><td class="tnum">${{formatFloat .TotalVestedUSD 2}}</td><td class="tnum">${{formatFloat .TotalVestedMXN 2}}</td></tr>
+            {{end}}
+            <tr class="total"><td>Total ({{.Equity.VestingYears}} años)</td><td>—</td><td>—</td><td class="tnum">${{formatFloat .Equity.TotalUSD 2}}</td><td class="tnum">${{formatFloat .Equity.TotalMXN 2}}</td></tr>
+          </table>
+          <div class="equity-note">USD convertido a MXN @ {{formatFloat .Equity.ExchangeRate 2}} (tipo de cambio fiscal). Grant inicial ${{formatFloat .Equity.InitialGrantUSD 2}} USD{{if .Equity.HasRefreshers}} · refreshers estimados entre ${{formatFloat .Equity.RefresherMinUSD 2}} y ${{formatFloat .Equity.RefresherMaxUSD 2}} USD{{end}} · vesting a {{.Equity.VestingYears}} años.</div>
+        </div>
+        {{else}}
+        <div>
+          <div class="sec-title"><svg class="icon"><use href="#i-info"/></svg>Notas del paquete</div>
+          <div class="filler-note">
+            Este paquete no incluye equity.{{if not (hasAnnualBenefits .Calculation)}} Tampoco incluye prestaciones anuales adicionales capturadas (aguinaldo, prima vacacional, fondo de ahorro, vales de despensa).{{end}}{{if not (hasEmployerContributions .Calculation)}} Bajo este régimen no se calculan aportaciones patronales de IMSS ni INFONAVIT en esta simulación.{{end}}{{if gt .Calculation.UnpaidVacationDays 0}} La variación frente al salario base incluye un descuento anual por {{.Calculation.UnpaidVacationDays}} días sin goce de sueldo (-${{formatFloat .Calculation.UnpaidVacationLoss 2}}), reflejado en el neto anual y en el neto mensual ajustado, no en el neto mensual nominal.{{end}}
+          </div>
         </div>
         {{end}}
-    </div>
 
-    <!-- Footer -->
-    <div class="footer">
-        <div class="legal-notice">
-            ⚠️ <strong>Aviso Legal:</strong> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF {{.FiscalYear}}) pero no constituyen asesoría fiscal, contable o legal profesional. El desarrollador no se hace responsable por discrepancias con los cálculos oficiales del SAT o el IMSS, ni por la toma de decisiones financieras basadas en estos resultados. Se recomienda consultar a un contador público certificado para determinaciones fiscales definitivas.
+        <div class="card-footer-mini">
+          <div class="sec-title"><svg class="icon"><use href="#i-sliders"/></svg>Parámetros del cálculo (según se capturaron)</div>
+          <table class="mini">
+            <tr><td class="k">Régimen</td><td class="v">{{template "pdf:regime-label" .}}</td></tr>
+            <tr><td class="k">Salario</td><td class="v tnum">{{if eq .Input.Currency "USD"}}${{.Input.GrossMonthlySalary}} USD/mes · TC {{.Input.ExchangeRate}} MXN/USD ⇒ ${{formatFloat .Calculation.GrossSalary 2}} MXN{{else}}${{formatFloat .Calculation.GrossSalary 2}} MXN / mes{{end}}</td></tr>
+            {{if and (ne .Input.PaymentFrequency "") (ne .Input.PaymentFrequency "monthly")}}
+            <tr><td class="k">Frecuencia de pago</td><td class="v">{{.Input.PaymentFrequency}}</td></tr>
+            {{end}}
+            {{if .Input.HasAguinaldo}}
+            <tr><td class="k">Aguinaldo</td><td class="v">{{.Input.AguinaldoDays}} días</td></tr>
+            {{end}}
+            {{if .Input.HasPrimaVacacional}}
+            <tr><td class="k">Prima vacacional</td><td class="v">{{.Input.VacationDays}} días @ {{.Input.PrimaVacacionalPercent}}%</td></tr>
+            {{end}}
+            {{if .Input.HasFondoAhorro}}
+            <tr><td class="k">Fondo de ahorro</td><td class="v">{{.Input.FondoAhorroPercent}}%</td></tr>
+            {{end}}
+            {{if .Input.HasValesDespensa}}
+            <tr><td class="k">Vales de despensa</td><td class="v tnum">${{.Input.ValesDespensaAmount}} / mes</td></tr>
+            {{end}}
+            {{if and (ne .Input.UnpaidVacationDays "") (ne .Input.UnpaidVacationDays "0")}}
+            <tr><td class="k">Días sin goce de sueldo</td><td class="v">{{.Input.UnpaidVacationDays}} días</td></tr>
+            {{end}}
+            {{range .Input.OtherBenefits}}
+            <tr><td class="k">Otra prestación</td><td class="v tnum">{{.Name}} · ${{formatFloat .Amount 2}} {{if eq .Currency ""}}MXN{{else}}{{.Currency}}{{end}} / {{if eq .Cadence "annual"}}año{{else}}mes{{end}}{{if .TaxFree}} · libre de ISR{{end}}</td></tr>
+            {{end}}
+            {{if .Equity}}
+            <tr><td class="k">Equity</td><td class="v tnum">Grant inicial ${{formatFloat .Equity.InitialGrantUSD 2}} USD{{if .Equity.HasRefreshers}} · refreshers ${{formatFloat .Equity.RefresherMinUSD 2}}–${{formatFloat .Equity.RefresherMaxUSD 2}} USD/año{{end}} · vesting {{.Equity.VestingYears}} años</td></tr>
+            {{end}}
+          </table>
         </div>
-        <div class="footer-brand">
-            Generado por TotalComp MX • totalcomp.mx • Versión {{.FiscalYear}}
-        </div>
+      </div>
     </div>
+    {{end}}
+  </div>
+
+  {{if ge (len .Packages) 2}}
+  <div class="recap">
+    <div class="sec-title"><svg class="icon"><use href="#i-bars"/></svg>Resumen comparativo</div>
+    <table class="recap-table">
+      <tr>
+        <th>Métrica</th>
+        {{range .Packages}}<th>{{.Name}}</th>{{end}}
+      </tr>
+      <tr>
+        <td class="metric">Neto mensual</td>
+        {{$max := 0.0}}{{range .Packages}}{{if gt .Calculation.NetSalary $max}}{{$max = .Calculation.NetSalary}}{{end}}{{end}}
+        {{range .Packages}}<td class="tnum{{if eq .Calculation.NetSalary $max}} best{{end}}">${{formatFloat .Calculation.NetSalary 2}}</td>{{end}}
+      </tr>
+      <tr>
+        <td class="metric">Neto anual</td>
+        {{$max2 := 0.0}}{{range .Packages}}{{if gt .Calculation.YearlyNet $max2}}{{$max2 = .Calculation.YearlyNet}}{{end}}{{end}}
+        {{range .Packages}}<td class="tnum{{if eq .Calculation.YearlyNet $max2}} best{{end}}">${{formatFloat .Calculation.YearlyNet 2}}</td>{{end}}
+      </tr>
+      <tr>
+        <td class="metric">Neto mensual ajustado</td>
+        {{$max3 := 0.0}}{{range .Packages}}{{if gt .Calculation.MonthlyAdjusted $max3}}{{$max3 = .Calculation.MonthlyAdjusted}}{{end}}{{end}}
+        {{range .Packages}}<td class="tnum{{if eq .Calculation.MonthlyAdjusted $max3}} best{{end}}">${{formatFloat .Calculation.MonthlyAdjusted 2}}</td>{{end}}
+      </tr>
+      {{$anyEquity := false}}{{range .Packages}}{{if .Equity}}{{$anyEquity = true}}{{end}}{{end}}
+      {{if $anyEquity}}
+      <tr>
+        <td class="metric">Equity acumulado a 4 años<span class="sub">total vested, convertido a MXN</span></td>
+        {{$max4 := 0.0}}{{range .Packages}}{{if .Equity}}{{if gt .Equity.TotalMXN $max4}}{{$max4 = .Equity.TotalMXN}}{{end}}{{end}}{{end}}
+        {{range .Packages}}<td class="tnum{{if .Equity}}{{if eq .Equity.TotalMXN $max4}} best{{end}}{{end}}">${{if .Equity}}{{formatFloat .Equity.TotalMXN 2}}{{else}}0.00{{end}}</td>{{end}}
+      </tr>
+      <tr class="recap-highlight">
+        <td class="metric">Compensación total a 4 años<span class="sub">neto anual × 4 + equity acumulado en MXN</span></td>
+        {{$max5 := 0.0}}{{range .Packages}}{{if gt .FourYearTotalMXN $max5}}{{$max5 = .FourYearTotalMXN}}{{end}}{{end}}
+        {{range .Packages}}<td class="tnum{{if eq .FourYearTotalMXN $max5}} best{{end}}">${{formatFloat .FourYearTotalMXN 2}}</td>{{end}}
+      </tr>
+      {{end}}
+    </table>
+  </div>
+  {{end}}
+
+  <div class="foot-band">
+    <div class="supuestos">
+      <svg class="icon"><use href="#i-info"/></svg>
+      <span><b>Supuestos:</b> Año fiscal {{.FiscalYear}} · UMA mensual ${{formatFloat .UMAMonthly 2}} · Tipo de cambio USD/MXN {{formatFloat .USDMXNRate 2}} · Fecha de generación: {{.Date}} · Folio {{.Folio}}</span>
+    </div>
+    <div class="legal-row">
+      <div class="legal-text"><b>Aviso legal:</b> Esta herramienta es un simulador de uso exclusivamente informativo y didáctico. Los cálculos presentados son estimaciones basadas en la legislación fiscal vigente (LISR, LSS, RMF {{.FiscalYear}}) pero no constituyen asesoría fiscal, contable o legal profesional. El desarrollador no se hace responsable por discrepancias con los cálculos oficiales del SAT o el IMSS, ni por la toma de decisiones financieras basadas en estos resultados. Se recomienda consultar a un contador público certificado para determinaciones fiscales definitivas.</div>
+      <div class="site">Generado por TotalComp MX · totalcomp.mx · Versión {{.FiscalYear}}</div>
+    </div>
+  </div>
+
+</div>
+
 </body>
 </html>
 {{end}}
 
-{{define "pdf:page-layout"}}
-{{if eq (len .Packages) 1}}
-size: A4 portrait;
-margin: 15mm;
-{{else}}
-size: A4 landscape;
-margin: 10mm;
-{{end}}
-{{end}}
+{{define "pdf:heading-text"}}{{if eq (len .Packages) 1}}Reporte de Compensación {{.FiscalYear}}{{else}}Comparación de Paquetes de Compensación {{.FiscalYear}}{{end}}{{end}}
 
-{{define "pdf:title"}}
-{{if eq (len .Packages) 1}}
-Reporte de Compensación {{.FiscalYear}}
-{{else}}
-Comparación de Paquetes de Compensación {{.FiscalYear}}
-{{end}}
-{{end}}
+{{define "pdf:cards-row-class"}}{{$n := len .Packages}}{{if eq $n 1}}single{{else if eq $n 3}}triple{{else if ge $n 4}}wrap2{{end}}{{end}}
 
-{{define "pdf:grid-mode"}}
-{{if eq (len .Packages) 1}}single-mode{{else}}comparison-mode{{end}}
-{{end}}
+{{define "pdf:regime-label"}}{{if eq .Input.Regime "resico"}}RESICO{{else}}Sueldos y Salarios{{end}}{{end}}
 
-{{define "pdf:regime-label"}}
-{{if eq .Input.Regime "resico"}}RESICO{{else}}Sueldos y Salarios{{end}}
-{{end}}
-
-{{define "pdf:monthly-breakdown"}}
-<div class="item">
-    <div class="item-label">Salario Bruto</div>
-    <div class="item-value neutral">${{formatFloat .Calculation.GrossSalary 2}}</div>
-</div>
-{{template "pdf:isr-row" .}}
-{{template "pdf:subsidio-row" .}}
-{{template "pdf:imss-worker-row" .}}
-{{template "pdf:fondo-employee-row" .}}
-{{template "pdf:vales-row" .}}
-{{template "pdf:unpaid-vacation-row" .}}
-{{template "pdf:monthly-other-benefits" .}}
-<div class="item total">
-    <div class="item-label">= Neto Mensual</div>
-    <div class="item-value">${{formatFloat .Calculation.NetSalary 2}}</div>
-</div>
-<div class="item" style="background: #d1fae5; border-top: 2px solid #059669; border-bottom: 2px solid #059669; margin-top: 4px; font-weight: 700;">
-    <div class="item-label" style="color: #065f46; font-weight: 700;">✨ Neto Mensual Ajustado</div>
-    <div class="item-value" style="color: #059669; font-size: 8.5pt; font-weight: 700;">${{formatFloat .Calculation.MonthlyAdjusted 2}}</div>
-</div>
+{{define "pdf:desglose"}}
+<table class="desglose">
+  <tr><td class="lbl">Salario bruto</td><td class="amt tnum">${{formatFloat .Calculation.GrossSalary 2}}</td></tr>
+  {{template "pdf:isr-row" .}}
+  {{template "pdf:subsidio-row" .}}
+  {{template "pdf:imss-worker-row" .}}
+  {{template "pdf:fondo-row" .}}
+  {{template "pdf:vales-row" .}}
+  {{template "pdf:otras-monthly-rows" .}}
+  <tr class="total-row"><td class="lbl">Neto mensual</td><td class="amt tnum">${{formatFloat .Calculation.NetSalary 2}}</td></tr>
+</table>
 {{end}}
 
 {{define "pdf:isr-row"}}
 {{if gt .Calculation.ISRTax 0.0}}
-<div class="item">
-    <div class="item-label">
-        (-) ISR
-        {{if gt .Calculation.GrossSalary 0.0}}
-        <span class="detail-badge">{{formatFloat (div (mul .Calculation.ISRTax 100.0) .Calculation.GrossSalary) 2}}%</span>
-        {{end}}
-    </div>
-    <div class="item-value negative">-${{formatFloat .Calculation.ISRTax 2}}</div>
-</div>
+<tr><td class="lbl">ISR{{if gt .Calculation.GrossSalary 0.0}}<span class="sub">tasa efectiva {{formatFloat (div (mul .Calculation.ISRTax 100.0) .Calculation.GrossSalary) 2}}%</span>{{end}}</td><td class="amt neg tnum">-${{formatFloat .Calculation.ISRTax 2}}</td></tr>
+{{else}}
+<tr><td class="lbl">ISR<span class="sub">no aplica</span></td><td class="amt zero tnum">$0.00</td></tr>
 {{end}}
 {{end}}
 
 {{define "pdf:subsidio-row"}}
 {{if gt .Calculation.SubsidioEmpleo 0.0}}
-<div class="item">
-    <div class="item-label">(+) Subsidio al Empleo</div>
-    <div class="item-value positive">+${{formatFloat .Calculation.SubsidioEmpleo 2}}</div>
-</div>
+<tr><td class="lbl">Subsidio al empleo</td><td class="amt pos tnum">+${{formatFloat .Calculation.SubsidioEmpleo 2}}</td></tr>
 {{end}}
 {{end}}
 
 {{define "pdf:imss-worker-row"}}
 {{if gt .Calculation.IMSSWorker 0.0}}
-<div class="item">
-    <div class="item-label">(-) IMSS Trabajador</div>
-    <div class="item-value negative">-${{formatFloat .Calculation.IMSSWorker 2}}</div>
-</div>
+<tr><td class="lbl">IMSS (trabajador)</td><td class="amt neg tnum">-${{formatFloat .Calculation.IMSSWorker 2}}</td></tr>
+{{else}}
+<tr><td class="lbl">IMSS (trabajador)<span class="sub">{{if eq .Input.Regime "resico"}}RESICO: sin retención IMSS{{else}}no aplica{{end}}</span></td><td class="amt zero tnum">$0.00</td></tr>
 {{end}}
 {{end}}
 
-{{define "pdf:fondo-employee-row"}}
+{{define "pdf:fondo-row"}}
 {{if gt .Calculation.FondoAhorroEmployee 0.0}}
-<div class="item">
-    <div class="item-label">
-        (-) Fondo de Ahorro
-        {{if ne .Input.FondoAhorroPercent ""}}
-        <span class="detail-badge">{{.Input.FondoAhorroPercent}}%</span>
-        {{end}}
-    </div>
-    <div class="item-value negative">-${{formatFloat .Calculation.FondoAhorroEmployee 2}}</div>
-</div>
+<tr><td class="lbl">Fondo de ahorro<span class="sub">aportación empleado · se reintegra anualmente</span></td><td class="amt neg tnum">-${{formatFloat .Calculation.FondoAhorroEmployee 2}}</td></tr>
+{{else}}
+<tr><td class="lbl">Fondo de ahorro<span class="sub">no configurado</span></td><td class="amt zero tnum">$0.00</td></tr>
 {{end}}
 {{end}}
 
 {{define "pdf:vales-row"}}
 {{if gt .Calculation.ValesDespensaMonthly 0.0}}
-<div class="item">
-    <div class="item-label">(+) Vales de Despensa</div>
-    <div class="item-value positive">+${{formatFloat .Calculation.ValesDespensaMonthly 2}}</div>
-</div>
+<tr><td class="lbl">Vales de despensa</td><td class="amt pos tnum">+${{formatFloat .Calculation.ValesDespensaMonthly 2}}</td></tr>
+{{else}}
+<tr><td class="lbl">Vales de despensa<span class="sub">no configurado</span></td><td class="amt zero tnum">$0.00</td></tr>
 {{end}}
 {{end}}
 
-{{define "pdf:unpaid-vacation-row"}}
-{{if gt .Calculation.UnpaidVacationLoss 0.0}}
-<div class="item">
-    <div class="item-label">
-        (-) Vacaciones no pagadas
-        {{if ne .Input.UnpaidVacationDays ""}}{{if ne .Input.UnpaidVacationDays "0"}}
-        <span class="detail-badge">{{.Input.UnpaidVacationDays}} días</span>
-        {{end}}{{end}}
-    </div>
-    <div class="item-value negative">-${{formatFloat .Calculation.UnpaidVacationLoss 2}}</div>
-</div>
-{{end}}
-{{end}}
-
-{{define "pdf:monthly-other-benefits"}}
+{{define "pdf:otras-monthly-rows"}}
+{{$hasMonthly := false}}
 {{range .Calculation.OtherBenefits}}
 {{if eq .Cadence "monthly"}}
-<div class="item">
-    <div class="item-label">
-        (+) {{.Name}}
-        {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
-    </div>
-    <div class="item-value positive">+${{formatFloat .Net 2}}</div>
-</div>
+{{$hasMonthly = true}}
+<tr><td class="lbl">Otras prestaciones<span class="sub">{{.Name}}{{if .TaxFree}} · libre de ISR{{end}}</span></td><td class="amt pos tnum">+${{formatFloat .Net 2}}</td></tr>
 {{end}}
 {{end}}
-{{end}}
-
-{{define "pdf:annual-benefits"}}
-{{if hasAnnualBenefits .Calculation}}
-<div class="section">
-    <div class="section-title">🎁 Prestaciones Anuales</div>
-    <div class="items-list">
-        {{template "pdf:aguinaldo-row" .}}
-        {{template "pdf:prima-row" .}}
-        {{template "pdf:fondo-yearly-row" .}}
-        {{template "pdf:annual-other-benefits" .}}
-    </div>
-</div>
+{{if not $hasMonthly}}
+<tr><td class="lbl">Otras prestaciones<span class="sub">no configurado</span></td><td class="amt zero tnum">$0.00</td></tr>
 {{end}}
 {{end}}
 
-{{define "pdf:aguinaldo-row"}}
+{{define "pdf:aguinaldo-li"}}
 {{if gt .Calculation.AguinaldoNet 0.0}}
-<div class="item">
-    <div class="item-label">
-        🎄 Aguinaldo
-        {{if ne .Input.AguinaldoDays ""}}
-        <span class="detail-badge">{{.Input.AguinaldoDays}} días</span>
-        {{end}}
-    </div>
-    <div class="item-value positive">${{formatFloat .Calculation.AguinaldoNet 2}}</div>
-</div>
+<li><span>Aguinaldo{{if ne .Input.AguinaldoDays ""}} ({{.Input.AguinaldoDays}} días){{end}}<span class="sub" style="display:block">ISR retenido ${{formatFloat .Calculation.AguinaldoISR 2}}</span></span><span class="v tnum">${{formatFloat .Calculation.AguinaldoNet 2}}</span></li>
+{{else}}
+<li><span>Aguinaldo<span class="sub" style="display:block">no capturado en este paquete</span></span><span class="v tnum">$0.00</span></li>
 {{end}}
 {{end}}
 
-{{define "pdf:prima-row"}}
+{{define "pdf:prima-li"}}
 {{if gt .Calculation.PrimaVacacionalNet 0.0}}
-<div class="item">
-    <div class="item-label">
-        🏖️ Prima Vacacional
-        {{if and (ne .Input.VacationDays "") (ne .Input.PrimaVacacionalPercent "")}}
-        <span class="detail-badge">{{.Input.VacationDays}} días @ {{.Input.PrimaVacacionalPercent}}%</span>
-        {{end}}
-    </div>
-    <div class="item-value positive">${{formatFloat .Calculation.PrimaVacacionalNet 2}}</div>
-</div>
+<li><span>Prima vacacional{{if and (ne .Input.VacationDays "") (ne .Input.PrimaVacacionalPercent "")}} ({{.Input.VacationDays}} d @ {{.Input.PrimaVacacionalPercent}}%){{end}}<span class="sub" style="display:block">ISR retenido ${{formatFloat .Calculation.PrimaVacacionalISR 2}}</span></span><span class="v tnum">${{formatFloat .Calculation.PrimaVacacionalNet 2}}</span></li>
+{{else}}
+<li><span>Prima vacacional<span class="sub" style="display:block">no capturada en este paquete</span></span><span class="v tnum">$0.00</span></li>
 {{end}}
 {{end}}
 
-{{define "pdf:fondo-yearly-row"}}
+{{define "pdf:fondo-yearly-li"}}
 {{if gt .Calculation.FondoAhorroYearly 0.0}}
-<div class="item">
-    <div class="item-label">💰 Fondo de Ahorro <span class="detail-badge">retorno 2x</span></div>
-    <div class="item-value positive">${{formatFloat .Calculation.FondoAhorroYearly 2}}</div>
-</div>
+<li><span>Fondo de ahorro (anual)<span class="sub" style="display:block">retorno 2x sobre aportación mensual</span></span><span class="v tnum">${{formatFloat .Calculation.FondoAhorroYearly 2}}</span></li>
+{{else}}
+<li><span>Fondo de ahorro (anual)</span><span class="v tnum">$0.00</span></li>
 {{end}}
 {{end}}
 
-{{define "pdf:annual-other-benefits"}}
+{{define "pdf:otras-annual-li"}}
 {{range .Calculation.OtherBenefits}}
 {{if eq .Cadence "annual"}}
-<div class="item">
-    <div class="item-label">
-        ✨ {{.Name}}
-        {{if .TaxFree}}<span class="tax-free-badge">Libre ISR</span>{{end}}
-    </div>
-    <div class="item-value positive">${{formatFloat .Net 2}}</div>
-</div>
+<li><span>{{.Name}} (anual){{if .TaxFree}}<span class="sub" style="display:block">libre de ISR</span>{{end}}</span><span class="v tnum">${{formatFloat .Net 2}}</span></li>
 {{end}}
 {{end}}
 {{end}}
 
-{{define "pdf:employer-contributions"}}
-{{if hasEmployerContributions .Calculation}}
-<div class="section">
-    <div class="section-title">💼 Aportaciones Patronales</div>
-    <div class="items-list">
-        {{template "pdf:infonavit-row" .}}
-        {{template "pdf:imss-employer-row" .}}
-    </div>
-</div>
+{{define "pdf:unpaid-li"}}
+{{if gt .Calculation.UnpaidVacationDays 0}}
+<li><span>Días sin goce de sueldo<span class="sub" style="display:block">{{.Calculation.UnpaidVacationDays}} días</span></span><span class="v neg tnum">-${{formatFloat .Calculation.UnpaidVacationLoss 2}}</span></li>
 {{end}}
 {{end}}
 
-{{define "pdf:infonavit-row"}}
-{{if gt .Calculation.InfonavitEmployerMonthly 0.0}}
-<div class="item">
-    <div class="item-label">
-        🏠 Infonavit (5%)
-        {{if .Calculation.HasInfonavitCredit}}
-        <span class="detail-badge">Abono crédito</span>
-        {{else}}
-        <span class="detail-badge">Ahorro</span>
-        {{end}}
-    </div>
-    <div class="item-value neutral">${{formatFloat (mul .Calculation.InfonavitEmployerMonthly 12.0) 2}}/año</div>
-</div>
-{{end}}
-{{end}}
-
-{{define "pdf:imss-employer-row"}}
+{{define "pdf:imss-patronal-li"}}
 {{if gt .Calculation.IMSSEmployerMonthly 0.0}}
-<div class="item">
-    <div class="item-label">🏥 IMSS Patronal</div>
-    <div class="item-value neutral">${{formatFloat (mul .Calculation.IMSSEmployerMonthly 12.0) 2}}/año</div>
-</div>
+<li><span>IMSS patronal<span class="sub" style="display:block">${{formatFloat .Calculation.IMSSEmployerMonthly 2}} / mes</span></span><span class="v tnum">${{formatFloat .Calculation.IMSSEmployerAnnual 2}}</span></li>
+{{else}}
+<li><span>IMSS patronal<span class="sub" style="display:block">{{if eq .Input.Regime "resico"}}régimen RESICO{{else}}no aplica{{end}}</span></span><span class="v tnum">$0.00</span></li>
+{{end}}
+{{end}}
+
+{{define "pdf:infonavit-patronal-li"}}
+{{if gt .Calculation.InfonavitEmployerMonthly 0.0}}
+<li><span>INFONAVIT patronal<span class="sub" style="display:block">${{formatFloat .Calculation.InfonavitEmployerMonthly 2}} / mes · {{if .Calculation.HasInfonavitCredit}}abono a crédito{{else}}ahorro{{end}}</span></span><span class="v tnum">${{formatFloat .Calculation.InfonavitEmployerAnnual 2}}</span></li>
+{{else}}
+<li><span>INFONAVIT patronal<span class="sub" style="display:block">no aplica</span></span><span class="v tnum">$0.00</span></li>
 {{end}}
 {{end}}

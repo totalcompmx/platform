@@ -16,6 +16,8 @@ import (
 type OtherBenefit = pdfreport.OtherBenefit
 type PackageInput = pdfreport.PackageInput
 type PackageResult = pdfreport.PackageResult
+type PackageEquity = pdfreport.PackageEquity
+type EquityYear = pdfreport.EquityYear
 type ReportData = pdfreport.ReportData
 
 var renderComparisonHTML = pdfreport.RenderComparisonHTML

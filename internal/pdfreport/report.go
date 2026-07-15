@@ -50,18 +50,68 @@ type PackageInput struct {
 	RefresherMaxUSD        string
 }
 
+// EquityYear is one row of a package's vesting schedule (amounts vested in
+// that year, not cumulative).
+type EquityYear struct {
+	Year               int
+	InitialVestedUSD   float64
+	RefresherVestedUSD float64
+	TotalVestedUSD     float64
+	TotalVestedMXN     float64
+}
+
+// PackageEquity summarizes a package's equity grant for the report.
+type PackageEquity struct {
+	InitialGrantUSD float64
+	HasRefreshers   bool
+	RefresherMinUSD float64
+	RefresherMaxUSD float64
+	VestingYears    int
+	ExchangeRate    float64
+	Schedule        []EquityYear
+	TotalUSD        float64
+	TotalMXN        float64
+}
+
 // PackageResult represents a single package's calculation results.
 type PackageResult struct {
 	Name        string
 	Input       PackageInput
 	Calculation *database.SalaryCalculation
+	Equity      *PackageEquity
+}
+
+// FourYearTotalMXN projects four years of net salary plus all vested equity.
+func (p PackageResult) FourYearTotalMXN() float64 {
+	total := 0.0
+	if p.Calculation != nil {
+		total = p.Calculation.YearlyNet * 4
+	}
+	if p.Equity != nil {
+		total += p.Equity.TotalMXN
+	}
+	return total
+}
+
+// Verdict names the winner of one comparison metric.
+type Verdict struct {
+	Winner      string
+	WinnerValue float64
+	RunnerUp    string
+	RunnerValue float64
+	Delta       float64
 }
 
 // ReportData represents the data passed to the PDF template.
 type ReportData struct {
-	Date       string
-	FiscalYear int
-	Packages   []PackageResult
+	Date         string
+	Folio        string
+	FiscalYear   int
+	UMAMonthly   float64
+	USDMXNRate   float64
+	Packages     []PackageResult
+	BestAdjusted *Verdict // nil for single-package reports
+	BestFourYear *Verdict // nil unless >=2 packages and at least one has equity
 }
 
 func RenderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
@@ -84,9 +134,77 @@ func renderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYe
 
 func reportData(packages []PackageResult, fiscalYear database.FiscalYear, now time.Time) ReportData {
 	return ReportData{
-		Date:       now.Format("02 Jan 2006"),
-		FiscalYear: fiscalyear.Label(fiscalYear, now),
-		Packages:   packages,
+		Date:         formatSpanishDate(now),
+		Folio:        "TC-" + now.Format("20060102-1504"),
+		FiscalYear:   fiscalyear.Label(fiscalYear, now),
+		UMAMonthly:   fiscalYear.UMAMonthly,
+		USDMXNRate:   fiscalYear.USDMXNRate,
+		Packages:     packages,
+		BestAdjusted: bestAdjustedVerdict(packages),
+		BestFourYear: bestFourYearVerdict(packages),
+	}
+}
+
+var spanishMonths = [...]string{
+	"enero", "febrero", "marzo", "abril", "mayo", "junio",
+	"julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+}
+
+func formatSpanishDate(now time.Time) string {
+	return fmt.Sprintf("%d de %s de %d", now.Day(), spanishMonths[now.Month()-1], now.Year())
+}
+
+// bestAdjustedVerdict picks the winner by adjusted monthly net (the same
+// metric the web comparison highlights).
+func bestAdjustedVerdict(packages []PackageResult) *Verdict {
+	return verdictBy(packages, func(p PackageResult) float64 {
+		if p.Calculation == nil {
+			return 0
+		}
+		return p.Calculation.MonthlyAdjusted
+	})
+}
+
+// bestFourYearVerdict picks the winner including equity over four years. It is
+// only meaningful when equity is present; otherwise it would mirror the
+// adjusted verdict and is omitted.
+func bestFourYearVerdict(packages []PackageResult) *Verdict {
+	if !anyPackageHasEquity(packages) {
+		return nil
+	}
+	return verdictBy(packages, PackageResult.FourYearTotalMXN)
+}
+
+func anyPackageHasEquity(packages []PackageResult) bool {
+	for _, p := range packages {
+		if p.Equity != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func verdictBy(packages []PackageResult, metric func(PackageResult) float64) *Verdict {
+	if len(packages) < 2 {
+		return nil
+	}
+
+	best, runner := 0, -1
+	for i := 1; i < len(packages); i++ {
+		if metric(packages[i]) > metric(packages[best]) {
+			runner = best
+			best = i
+		} else if runner == -1 || metric(packages[i]) > metric(packages[runner]) {
+			runner = i
+		}
+	}
+
+	return &Verdict{
+		Winner:      packages[best].Name,
+		WinnerValue: metric(packages[best]),
+		RunnerUp:    packages[runner].Name,
+		RunnerValue: metric(packages[runner]),
+		Delta:       metric(packages[best]) - metric(packages[runner]),
 	}
 }
 

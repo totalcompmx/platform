@@ -19,13 +19,103 @@ func TestRenderComparisonHTML(t *testing.T) {
 }
 
 func TestRenderComparisonHTMLUsesReportData(t *testing.T) {
-	tmpl := template.Must(template.New("report.tmpl").Parse(`{{.Date}} {{.FiscalYear}} {{range .Packages}}{{.Name}}{{end}}`))
+	tmpl := template.Must(template.New("report.tmpl").Parse(`{{.Date}} {{.Folio}} {{.FiscalYear}} {{range .Packages}}{{.Name}}{{end}}`))
 	html, err := renderComparisonHTML([]PackageResult{testPackageResult()}, database.FiscalYear{Year: 2026}, func() (*template.Template, error) {
 		return tmpl, nil
 	}, fixedNow)
 
 	assertNoError(t, err)
-	assertString(t, html, "02 Jan 2025 2026 Base")
+	assertString(t, html, "2 de enero de 2025 TC-20250102-0304 2026 Base")
+}
+
+func TestReportDataAssumptionsAndVerdicts(t *testing.T) {
+	fiscalYear := database.FiscalYear{Year: 2026, UMAMonthly: 3439.46, USDMXNRate: 20}
+
+	t.Run("single package has no verdicts", func(t *testing.T) {
+		data := reportData([]PackageResult{testPackageResult()}, fiscalYear, fixedNow())
+
+		assertFloat(t, data.UMAMonthly, 3439.46)
+		assertFloat(t, data.USDMXNRate, 20)
+		if data.BestAdjusted != nil || data.BestFourYear != nil {
+			t.Fatal("single-package report must not carry verdicts")
+		}
+	})
+
+	t.Run("comparison picks adjusted winner", func(t *testing.T) {
+		packages := []PackageResult{
+			namedPackage("A", 100, nil),
+			namedPackage("B", 200, nil),
+		}
+		data := reportData(packages, fiscalYear, fixedNow())
+
+		assertString(t, data.BestAdjusted.Winner, "B")
+		assertString(t, data.BestAdjusted.RunnerUp, "A")
+		assertFloat(t, data.BestAdjusted.Delta, 100)
+		if data.BestFourYear != nil {
+			t.Fatal("four-year verdict requires equity")
+		}
+	})
+
+	t.Run("four-year verdict appears with equity", func(t *testing.T) {
+		equity := &PackageEquity{TotalMXN: 1_650_000}
+		packages := []PackageResult{
+			namedPackage("Equity Co", 100, equity),
+			namedPackage("Cash Co", 200, nil),
+		}
+		data := reportData(packages, fiscalYear, fixedNow())
+
+		assertString(t, data.BestAdjusted.Winner, "Cash Co")
+		assertString(t, data.BestFourYear.Winner, "Equity Co")
+	})
+}
+
+func TestVerdictByRunnerSelection(t *testing.T) {
+	packages := []PackageResult{
+		namedPackage("A", 5, nil),
+		namedPackage("B", 3, nil),
+		namedPackage("C", 4, nil),
+	}
+
+	verdict := bestAdjustedVerdict(packages)
+
+	assertString(t, verdict.Winner, "A")
+	assertString(t, verdict.RunnerUp, "C")
+	assertFloat(t, verdict.Delta, 1)
+}
+
+func TestBestAdjustedVerdictHandlesNilCalculation(t *testing.T) {
+	packages := []PackageResult{
+		{Name: "Empty"},
+		namedPackage("Real", 10, nil),
+	}
+
+	verdict := bestAdjustedVerdict(packages)
+
+	assertString(t, verdict.Winner, "Real")
+	assertFloat(t, verdict.RunnerValue, 0)
+}
+
+func TestFourYearTotalMXN(t *testing.T) {
+	calc := &database.SalaryCalculation{YearlyNet: 1000}
+	equity := &PackageEquity{TotalMXN: 500}
+
+	assertFloat(t, PackageResult{Calculation: calc, Equity: equity}.FourYearTotalMXN(), 4500)
+	assertFloat(t, PackageResult{Calculation: calc}.FourYearTotalMXN(), 4000)
+	assertFloat(t, PackageResult{Equity: equity}.FourYearTotalMXN(), 500)
+	assertFloat(t, PackageResult{}.FourYearTotalMXN(), 0)
+}
+
+func TestFormatSpanishDate(t *testing.T) {
+	assertString(t, formatSpanishDate(time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)), "15 de julio de 2026")
+	assertString(t, formatSpanishDate(time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)), "1 de diciembre de 2026")
+}
+
+func namedPackage(name string, monthlyAdjusted float64, equity *PackageEquity) PackageResult {
+	return PackageResult{
+		Name:        name,
+		Calculation: &database.SalaryCalculation{MonthlyAdjusted: monthlyAdjusted, YearlyNet: monthlyAdjusted * 12},
+		Equity:      equity,
+	}
 }
 
 func TestRenderComparisonHTMLReportsParseErrors(t *testing.T) {

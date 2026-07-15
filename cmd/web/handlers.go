@@ -1368,7 +1368,40 @@ func buildPDFPackage(result PackageResult, packageInputs []PackageInput, index i
 		Name:        result.PackageName,
 		Input:       pdfPackageInput(packageInputs, index),
 		Calculation: result.SalaryCalculation,
+		Equity:      pdfPackageEquity(result),
 	}
+}
+
+func pdfPackageEquity(result PackageResult) *pdf.PackageEquity {
+	if result.EquityConfig == nil {
+		return nil
+	}
+
+	packageEquity := &pdf.PackageEquity{
+		InitialGrantUSD: result.EquityConfig.InitialGrantUSD,
+		HasRefreshers:   result.EquityConfig.HasRefreshers,
+		RefresherMinUSD: result.EquityConfig.RefresherMinUSD,
+		RefresherMaxUSD: result.EquityConfig.RefresherMaxUSD,
+		VestingYears:    result.EquityConfig.VestingYears,
+		ExchangeRate:    result.EquityConfig.ExchangeRate,
+	}
+
+	for _, year := range result.EquitySchedule {
+		if year.Year == 0 {
+			continue
+		}
+		packageEquity.Schedule = append(packageEquity.Schedule, pdf.EquityYear{
+			Year:               year.Year,
+			InitialVestedUSD:   year.InitialGrantVested,
+			RefresherVestedUSD: year.RefresherTotal,
+			TotalVestedUSD:     year.TotalVested,
+			TotalVestedMXN:     year.TotalVestedMXN,
+		})
+		packageEquity.TotalUSD += year.TotalVested
+		packageEquity.TotalMXN += year.TotalVestedMXN
+	}
+
+	return packageEquity
 }
 
 func pdfPackageInput(packageInputs []PackageInput, index int) pdf.PackageInput {
