@@ -55,34 +55,6 @@
   .doc-header .meta .line { margin-top: 1px; }
   .doc-header .meta .folio { color: #0f172a; font-weight: 600; }
 
-  /* ============ VERDICT BANNER ============ */
-  .verdict-banner {
-    background: linear-gradient(135deg, #059669, #047857);
-    border-radius: 8px;
-    color: #ffffff;
-    padding: 4mm 6mm;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 8mm;
-    margin-bottom: 4mm;
-    position: relative;
-  }
-  .verdict-banner::before {
-    content: "";
-    position: absolute;
-    left: 50%; top: 8%; bottom: 8%;
-    width: 1px;
-    background: rgba(255,255,255,0.28);
-  }
-  .verdict-banner.single { grid-template-columns: 1fr; }
-  .verdict-banner.single::before { display: none; }
-  .verdict-col { display: flex; flex-direction: column; gap: 1.5px; min-width: 0; }
-  .verdict-col .vhead { display: flex; align-items: center; gap: 5px; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .88; font-weight: 600; }
-  .verdict-col .vhead svg.icon { color: #ffffff; width: 12px; height: 12px; }
-  .verdict-col .vwinner { font-size: 16px; font-weight: 700; margin-top: 1px; overflow-wrap: break-word; }
-  .verdict-col .vdetail { font-size: 10px; opacity: .92; }
-  .verdict-col .vdelta { font-size: 10.5px; font-weight: 700; margin-top: 1px; }
-  .verdict-foot { grid-column: 1 / -1; margin-top: 3px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.28); font-size: 9px; opacity: .92; text-align: center; }
 
   /* ============ CARD ROW ============ */
   .cards-row { display: flex; gap: 5mm; flex: 1; align-items: stretch; min-height: 0; }
@@ -111,9 +83,6 @@
     overflow: hidden;
     min-width: 0;
   }
-  .card.winner { border-color: #059669; }
-  .card.runner { border-left: 3px solid #4338ca; }
-  .card.winner { border-left: 3px solid #059669; }
 
   .card-header {
     padding: 2.5mm 4mm 2mm;
@@ -123,19 +92,10 @@
     justify-content: space-between;
     gap: 6px;
   }
-  .card.winner .card-header { background: #ecfdf5; }
-  .card.runner .card-header { background: #ffffff; }
   .card-title-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .card-title-wrap svg.icon { color: #059669; width: 15px; height: 15px; }
-  .card.runner .card-title-wrap svg.icon { color: #334155; }
   .card-title { font-size: 12.5px; font-weight: 700; color: #0f172a; overflow-wrap: break-word; }
   .card-regime { font-size: 9px; color: #475569; font-weight: 500; }
-  .badge {
-    font-size: 9px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
-    padding: 2.5px 6px; border-radius: 20px; white-space: nowrap; flex: none;
-  }
-  .badge.win { background: #059669; color: #fff; }
-  .badge.alt { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
 
   .card-body { padding: 2.5mm 4mm 3mm; display: flex; flex-direction: column; gap: 2mm; flex: 1; }
 
@@ -152,7 +112,6 @@
     color: #059669; margin-bottom: 1.2mm;
   }
   .sec-title svg.icon { width: 11px; height: 11px; color: #059669; }
-  .card.runner .sec-title, .card.runner .sec-title svg.icon { color: #334155; }
 
   /* desglose table */
   table.desglose { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -228,7 +187,6 @@
   table.recap-table tr:last-child td { border-bottom: none; }
   table.recap-table td.metric { color: #0f172a; font-weight: 500; text-align: left; }
   table.recap-table td.metric .sub { display: block; font-size: 8.7px; color: #94a3b8; font-weight: 400; margin-top: 1px; }
-  table.recap-table td.best { font-weight: 700; color: #047857; }
   tr.recap-highlight td { background: #ecfdf5; font-weight: 700; font-size: 12px; padding-top: 1.6mm; padding-bottom: 1.6mm; }
   tr.recap-highlight td:first-child { border-radius: 6px 0 0 6px; padding-left: 3mm; }
   tr.recap-highlight td:last-child { border-radius: 0 6px 6px 0; padding-right: 3mm; }
@@ -266,32 +224,11 @@
     </div>
   </div>
 
-  {{if .BestAdjusted}}
-  <div class="verdict-banner{{if not .BestFourYear}} single{{end}}">
-    <div class="verdict-col">
-      <div class="vhead"><svg class="icon"><use href="#i-check"/></svg>Mejor neto mensual ajustado</div>
-      <div class="vwinner">{{.BestAdjusted.Winner}}</div>
-      <div class="vdetail tnum">${{formatFloat .BestAdjusted.WinnerValue 2}} vs ${{formatFloat .BestAdjusted.RunnerValue 2}} &nbsp;({{.BestAdjusted.RunnerUp}})</div>
-      <div class="vdelta tnum">+${{formatFloat .BestAdjusted.Delta 2}} / mes a favor de {{.BestAdjusted.Winner}}</div>
-    </div>
-    {{if .BestFourYear}}
-    <div class="verdict-col">
-      <div class="vhead"><svg class="icon"><use href="#i-trend"/></svg>Mejor compensación a 4 años (incl. equity)</div>
-      <div class="vwinner">{{.BestFourYear.Winner}}</div>
-      <div class="vdetail tnum">${{formatFloat .BestFourYear.WinnerValue 2}} vs ${{formatFloat .BestFourYear.RunnerValue 2}} &nbsp;({{.BestFourYear.RunnerUp}})</div>
-      <div class="vdelta tnum">+${{formatFloat .BestFourYear.Delta 2}} a 4 años a favor de {{.BestFourYear.Winner}}</div>
-    </div>
-    <div class="verdict-foot">{{if eq .BestFourYear.Winner .BestAdjusted.Winner}}{{.BestAdjusted.Winner}} es la mejor opción en ambos horizontes de comparación: neto mensual ajustado y compensación total a 4 años.{{else}}El resultado depende del horizonte de comparación: en el neto mensual ajustado gana {{.BestAdjusted.Winner}}; incorporando el equity acumulado a 4 años, gana {{.BestFourYear.Winner}}.{{end}}</div>
-    {{end}}
-  </div>
-  {{end}}
 
   <div class="cards-row {{template "pdf:cards-row-class" .}}">
     {{$root := .}}
     {{range .Packages}}
-    {{$isWin := false}}{{if $root.BestAdjusted}}{{if eq .Name $root.BestAdjusted.Winner}}{{$isWin = true}}{{end}}{{end}}
-    {{$isAlt := false}}{{if $root.BestFourYear}}{{if $root.BestAdjusted}}{{if and (eq .Name $root.BestFourYear.Winner) (ne $root.BestFourYear.Winner $root.BestAdjusted.Winner)}}{{$isAlt = true}}{{end}}{{end}}{{end}}
-    <div class="card{{if $isWin}} winner{{else if $root.BestAdjusted}} runner{{end}}">
+    <div class="card">
       <div class="card-header">
         <div class="card-title-wrap">
           <svg class="icon"><use href="#i-briefcase"/></svg>
@@ -300,7 +237,6 @@
             <div class="card-regime">Régimen: {{template "pdf:regime-label" .}} · {{if eq .Input.Currency "USD"}}USD{{else}}MXN{{end}}</div>
           </div>
         </div>
-        {{if $isWin}}<span class="badge win">Mejor paquete</span>{{else if $isAlt}}<span class="badge alt">Gana a 4 años c/ equity</span>{{end}}
       </div>
 
       <div class="card-body">
@@ -354,9 +290,7 @@
   <div class="cards-row auto {{template "pdf:cards-row-class" .}}">
     {{$root := .}}
     {{range .Packages}}
-    {{$isWin := false}}{{if $root.BestAdjusted}}{{if eq .Name $root.BestAdjusted.Winner}}{{$isWin = true}}{{end}}{{end}}
-    {{$isAlt := false}}{{if $root.BestFourYear}}{{if $root.BestAdjusted}}{{if and (eq .Name $root.BestFourYear.Winner) (ne $root.BestFourYear.Winner $root.BestAdjusted.Winner)}}{{$isAlt = true}}{{end}}{{end}}{{end}}
-    <div class="card{{if $isWin}} winner{{else if $root.BestAdjusted}} runner{{end}}">
+    <div class="card">
       <div class="card-header">
         <div class="card-title-wrap">
           <svg class="icon"><use href="#i-briefcase"/></svg>
@@ -365,7 +299,6 @@
             <div class="card-regime">{{if .Equity}}Equity y parámetros de entrada{{else}}Parámetros de entrada{{end}}</div>
           </div>
         </div>
-        {{if $isWin}}<span class="badge win">Mejor paquete</span>{{else if $isAlt}}<span class="badge alt">Gana a 4 años c/ equity</span>{{end}}
       </div>
 
       <div class="card-body">
@@ -442,30 +375,25 @@
       </tr>
       <tr>
         <td class="metric">Neto mensual</td>
-        {{$max := 0.0}}{{range .Packages}}{{if gt .Calculation.NetSalary $max}}{{$max = .Calculation.NetSalary}}{{end}}{{end}}
-        {{range .Packages}}<td class="tnum{{if eq .Calculation.NetSalary $max}} best{{end}}">${{formatFloat .Calculation.NetSalary 2}}</td>{{end}}
+                {{range .Packages}}<td class="tnum">${{formatFloat .Calculation.NetSalary 2}}</td>{{end}}
       </tr>
       <tr>
         <td class="metric">Neto anual</td>
-        {{$max2 := 0.0}}{{range .Packages}}{{if gt .Calculation.YearlyNet $max2}}{{$max2 = .Calculation.YearlyNet}}{{end}}{{end}}
-        {{range .Packages}}<td class="tnum{{if eq .Calculation.YearlyNet $max2}} best{{end}}">${{formatFloat .Calculation.YearlyNet 2}}</td>{{end}}
+                {{range .Packages}}<td class="tnum">${{formatFloat .Calculation.YearlyNet 2}}</td>{{end}}
       </tr>
       <tr>
         <td class="metric">Neto mensual ajustado</td>
-        {{$max3 := 0.0}}{{range .Packages}}{{if gt .Calculation.MonthlyAdjusted $max3}}{{$max3 = .Calculation.MonthlyAdjusted}}{{end}}{{end}}
-        {{range .Packages}}<td class="tnum{{if eq .Calculation.MonthlyAdjusted $max3}} best{{end}}">${{formatFloat .Calculation.MonthlyAdjusted 2}}</td>{{end}}
+                {{range .Packages}}<td class="tnum">${{formatFloat .Calculation.MonthlyAdjusted 2}}</td>{{end}}
       </tr>
       {{$anyEquity := false}}{{range .Packages}}{{if .Equity}}{{$anyEquity = true}}{{end}}{{end}}
       {{if $anyEquity}}
       <tr>
         <td class="metric">Equity acumulado a 4 años<span class="sub">total vested, convertido a MXN</span></td>
-        {{$max4 := 0.0}}{{range .Packages}}{{if .Equity}}{{if gt .Equity.TotalMXN $max4}}{{$max4 = .Equity.TotalMXN}}{{end}}{{end}}{{end}}
-        {{range .Packages}}<td class="tnum{{if .Equity}}{{if eq .Equity.TotalMXN $max4}} best{{end}}{{end}}">${{if .Equity}}{{formatFloat .Equity.TotalMXN 2}}{{else}}0.00{{end}}</td>{{end}}
+                {{range .Packages}}<td class="tnum">${{if .Equity}}{{formatFloat .Equity.TotalMXN 2}}{{else}}0.00{{end}}</td>{{end}}
       </tr>
       <tr class="recap-highlight">
         <td class="metric">Compensación total a 4 años<span class="sub">neto anual × 4 + equity acumulado en MXN</span></td>
-        {{$max5 := 0.0}}{{range .Packages}}{{if gt .FourYearTotalMXN $max5}}{{$max5 = .FourYearTotalMXN}}{{end}}{{end}}
-        {{range .Packages}}<td class="tnum{{if eq .FourYearTotalMXN $max5}} best{{end}}">${{formatFloat .FourYearTotalMXN 2}}</td>{{end}}
+                {{range .Packages}}<td class="tnum">${{formatFloat .FourYearTotalMXN 2}}</td>{{end}}
       </tr>
       {{end}}
     </table>

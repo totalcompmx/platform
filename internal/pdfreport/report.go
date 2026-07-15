@@ -93,25 +93,16 @@ func (p PackageResult) FourYearTotalMXN() float64 {
 	return total
 }
 
-// Verdict names the winner of one comparison metric.
-type Verdict struct {
-	Winner      string
-	WinnerValue float64
-	RunnerUp    string
-	RunnerValue float64
-	Delta       float64
-}
-
-// ReportData represents the data passed to the PDF template.
+// ReportData represents the data passed to the PDF template. The report is
+// deliberately verdict-free: it presents the numbers side by side and leaves
+// the interpretation to the reader.
 type ReportData struct {
-	Date         string
-	Folio        string
-	FiscalYear   int
-	UMAMonthly   float64
-	USDMXNRate   float64
-	Packages     []PackageResult
-	BestAdjusted *Verdict // nil for single-package reports
-	BestFourYear *Verdict // nil unless >=2 packages and at least one has equity
+	Date       string
+	Folio      string
+	FiscalYear int
+	UMAMonthly float64
+	USDMXNRate float64
+	Packages   []PackageResult
 }
 
 func RenderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYear) (string, error) {
@@ -134,14 +125,12 @@ func renderComparisonHTML(packages []PackageResult, fiscalYear database.FiscalYe
 
 func reportData(packages []PackageResult, fiscalYear database.FiscalYear, now time.Time) ReportData {
 	return ReportData{
-		Date:         formatSpanishDate(now),
-		Folio:        "TC-" + now.Format("20060102-1504"),
-		FiscalYear:   fiscalyear.Label(fiscalYear, now),
-		UMAMonthly:   fiscalYear.UMAMonthly,
-		USDMXNRate:   fiscalYear.USDMXNRate,
-		Packages:     packages,
-		BestAdjusted: bestAdjustedVerdict(packages),
-		BestFourYear: bestFourYearVerdict(packages),
+		Date:       formatSpanishDate(now),
+		Folio:      "TC-" + now.Format("20060102-1504"),
+		FiscalYear: fiscalyear.Label(fiscalYear, now),
+		UMAMonthly: fiscalYear.UMAMonthly,
+		USDMXNRate: fiscalYear.USDMXNRate,
+		Packages:   packages,
 	}
 }
 
@@ -152,60 +141,6 @@ var spanishMonths = [...]string{
 
 func formatSpanishDate(now time.Time) string {
 	return fmt.Sprintf("%d de %s de %d", now.Day(), spanishMonths[now.Month()-1], now.Year())
-}
-
-// bestAdjustedVerdict picks the winner by adjusted monthly net (the same
-// metric the web comparison highlights).
-func bestAdjustedVerdict(packages []PackageResult) *Verdict {
-	return verdictBy(packages, func(p PackageResult) float64 {
-		if p.Calculation == nil {
-			return 0
-		}
-		return p.Calculation.MonthlyAdjusted
-	})
-}
-
-// bestFourYearVerdict picks the winner including equity over four years. It is
-// only meaningful when equity is present; otherwise it would mirror the
-// adjusted verdict and is omitted.
-func bestFourYearVerdict(packages []PackageResult) *Verdict {
-	if !anyPackageHasEquity(packages) {
-		return nil
-	}
-	return verdictBy(packages, PackageResult.FourYearTotalMXN)
-}
-
-func anyPackageHasEquity(packages []PackageResult) bool {
-	for _, p := range packages {
-		if p.Equity != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func verdictBy(packages []PackageResult, metric func(PackageResult) float64) *Verdict {
-	if len(packages) < 2 {
-		return nil
-	}
-
-	best, runner := 0, -1
-	for i := 1; i < len(packages); i++ {
-		if metric(packages[i]) > metric(packages[best]) {
-			runner = best
-			best = i
-		} else if runner == -1 || metric(packages[i]) > metric(packages[runner]) {
-			runner = i
-		}
-	}
-
-	return &Verdict{
-		Winner:      packages[best].Name,
-		WinnerValue: metric(packages[best]),
-		RunnerUp:    packages[runner].Name,
-		RunnerValue: metric(packages[runner]),
-		Delta:       metric(packages[best]) - metric(packages[runner]),
-	}
 }
 
 func parseReportTemplate() (*template.Template, error) {
