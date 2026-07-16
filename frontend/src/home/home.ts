@@ -43,16 +43,19 @@ interface BenefitNoticeControls {
 const benefitCounters: number[] = [0, 0];
 let homeInitialized = false;
 
-export function toggleRegime(select: HTMLSelectElement, index: number): void {
+// resetBenefitSelections distinguishes a user switching regimes (reset the
+// benefit checkboxes to the regime's defaults) from the initial page render,
+// which must not clobber selections restored from the saved form state.
+export function toggleRegime(select: HTMLSelectElement, index: number, resetBenefitSelections = true): void {
     const controls = regimeControls(index);
     const paymentFreqSelect = controls.paymentFreqSelect;
     if (!paymentFreqSelect) return;
 
     const currentFreq = paymentFreqSelect.value;
     if (select.value === 'resico') {
-        applyResicoRegime(controls, paymentFreqSelect);
+        applyResicoRegime(controls, paymentFreqSelect, resetBenefitSelections);
     } else {
-        applySalaryRegime(controls, paymentFreqSelect, currentFreq);
+        applySalaryRegime(controls, paymentFreqSelect, currentFreq, resetBenefitSelections);
     }
 
     restorePaymentFrequency(paymentFreqSelect, currentFreq);
@@ -71,23 +74,32 @@ export function regimeControls(index: number): RegimeControls {
     };
 }
 
-export function applyResicoRegime(controls: RegimeControls, paymentFreqSelect: HTMLSelectElement): void {
+export function applyResicoRegime(
+    controls: RegimeControls,
+    paymentFreqSelect: HTMLSelectElement,
+    resetBenefitSelections = true
+): void {
     setDisplay(controls.benefitsSection, 'none');
     setDisplay(controls.currencySelection, 'block');
     setDisplay(controls.unpaidVacationDiv, 'block');
-    setBenefitCheckboxes(controls.benefitsSection, false);
+    if (resetBenefitSelections) {
+        setBenefitCheckboxes(controls.benefitsSection, false);
+    }
     Array.from(paymentFreqSelect.options).forEach(enablePaymentOption);
 }
 
 export function applySalaryRegime(
     controls: RegimeControls,
     paymentFreqSelect: HTMLSelectElement,
-    currentFreq: string
+    currentFreq: string,
+    resetBenefitSelections = true
 ): void {
     setDisplay(controls.benefitsSection, 'block');
     setDisplay(controls.currencySelection, 'none');
     setDisplay(controls.unpaidVacationDiv, 'none');
-    setBenefitCheckboxes(controls.benefitsSection, true);
+    if (resetBenefitSelections) {
+        setBenefitCheckboxes(controls.benefitsSection, true);
+    }
     setCurrencyToMXN(controls.currencySelect);
     setDisplay(controls.exchangeRateDiv, 'none');
     setDisplay(controls.exchangeRateDisplay, 'none');
@@ -415,38 +427,45 @@ export function loadSavedBenefitCheckboxes(idx: number): void {
 }
 
 export function loadSavedAguinaldo(idx: number): void {
-    if (!savedTrue(`saved-pkg-${idx}-has-aguinaldo`)) return;
+    const enabled = savedTrue(`saved-pkg-${idx}-has-aguinaldo`);
+    setCheckedFirst(`input[name="HasAguinaldo[]"][value="${idx}"]`, enabled);
+    if (!enabled) return;
 
-    checkFirst(`input[name="HasAguinaldo[]"][value="${idx}"]`);
     setIndexedValue('AguinaldoDays[]', idx, savedValue(`saved-pkg-${idx}-aguinaldo-days`));
 }
 
 export function loadSavedVales(idx: number): void {
-    if (!savedTrue(`saved-pkg-${idx}-has-vales`)) return;
+    const enabled = savedTrue(`saved-pkg-${idx}-has-vales`);
+    setCheckedFirst(`input[name="HasValesDespensa[]"][value="${idx}"]`, enabled);
+    if (!enabled) return;
 
-    checkFirst(`input[name="HasValesDespensa[]"][value="${idx}"]`);
     setIndexedFormattedValue('ValesDespensaAmount[]', idx, savedValue(`saved-pkg-${idx}-vales-amount`));
 }
 
 export function loadSavedPrima(idx: number): void {
-    if (!savedTrue(`saved-pkg-${idx}-has-prima`)) return;
+    const enabled = savedTrue(`saved-pkg-${idx}-has-prima`);
+    setCheckedFirst(`input[name="HasPrimaVacacional[]"][value="${idx}"]`, enabled);
+    if (!enabled) return;
 
-    checkFirst(`input[name="HasPrimaVacacional[]"][value="${idx}"]`);
     setIndexedValue('VacationDays[]', idx, savedValue(`saved-pkg-${idx}-vacation-days`));
     setIndexedValue('PrimaVacacionalPercent[]', idx, savedValue(`saved-pkg-${idx}-prima-percent`));
 }
 
 export function loadSavedFondo(idx: number): void {
-    if (!savedTrue(`saved-pkg-${idx}-has-fondo`)) return;
+    const enabled = savedTrue(`saved-pkg-${idx}-has-fondo`);
+    setCheckedFirst(`input[name="HasFondoAhorro[]"][value="${idx}"]`, enabled);
+    if (!enabled) return;
 
-    checkFirst(`input[name="HasFondoAhorro[]"][value="${idx}"]`);
     setIndexedValue('FondoAhorroPercent[]', idx, savedValue(`saved-pkg-${idx}-fondo-percent`));
 }
 
-export function checkFirst(selector: string): void {
+// Applies the saved checked state (checking OR unchecking) as long as the
+// user/browser hasn't already modified the control. A check-only loader let
+// templates that default to checked silently re-enable disabled benefits.
+export function setCheckedFirst(selector: string, checked: boolean): void {
     const checkbox = document.querySelector<HTMLInputElement>(selector);
     if (checkbox && checkbox.checked === checkbox.defaultChecked) {
-        checkbox.checked = true;
+        checkbox.checked = checked;
     }
 }
 
@@ -633,7 +652,7 @@ export function initializeHome(): void {
     loadSavedValues();
 
     document.querySelectorAll<HTMLSelectElement>('.regime-select').forEach((select, index) => {
-        toggleRegime(select, index);
+        toggleRegime(select, index, false);
     });
 
     attachCommaFormatting(document.querySelectorAll<HTMLInputElement>('.salary-input, .money-input'));

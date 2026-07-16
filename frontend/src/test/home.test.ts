@@ -746,7 +746,7 @@ test('home helpers cover defensive branches and direct state transitions', async
     home.setIndexedValue('Missing[]', 0, 'x');
     home.setIndexedValue('Missing[]', 0, '');
     home.setIndexedFormattedValue('Missing[]', 0, '');
-    home.checkFirst('.missing');
+    home.setCheckedFirst('.missing', true);
     home.toggleEquitySection(document.createElement('input'));
 
     expect(home.savedValue('missing')).toBe('');
@@ -885,6 +885,56 @@ test('home helpers cover defensive branches and direct state transitions', async
     const unrelated = document.createElement('div');
     home.handleDynamicBenefitChange(new Event('change'));
     unrelated.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+
+test('regime init preserves saved benefit selections, user switch resets them', async () => {
+    const home = await loadHomeModule();
+    document.body.innerHTML = `
+        <div class="benefits-section-0"><input type="checkbox" name="HasValesDespensa[]" value="0"></div>
+        <select class="payment-frequency-select-0"><option value="monthly" selected>Mensual</option></select>
+        <select class="regime-select"><option value="sueldos_salarios" selected>Sueldos</option></select>
+        <span class="salary-label-0"></span>
+        <span class="hours-per-week-0"></span>
+    `;
+    const regimeSelect = expectElement<HTMLSelectElement>('.regime-select');
+    const checkbox = expectElement<HTMLInputElement>('input[name="HasValesDespensa[]"]');
+
+    home.toggleRegime(regimeSelect, 0, false);
+    expect(checkbox.checked).toBe(false);
+
+    home.toggleRegime(regimeSelect, 0);
+    expect(checkbox.checked).toBe(true);
+
+    regimeSelect.innerHTML = '<option value="resico" selected>RESICO</option>';
+    home.toggleRegime(regimeSelect, 0, false);
+    expect(checkbox.checked).toBe(true);
+
+    home.toggleRegime(regimeSelect, 0);
+    expect(checkbox.checked).toBe(false);
+});
+
+test('saved benefit loaders uncheck default-checked boxes the user disabled', async () => {
+    const home = await loadHomeModule();
+    document.body.innerHTML = `
+        <input type="hidden" id="saved-pkg-0-has-vales" value="false">
+        <input type="hidden" id="saved-pkg-0-has-fondo" value="false">
+        <input type="hidden" id="saved-pkg-0-has-aguinaldo" value="true">
+        <input type="hidden" id="saved-pkg-0-aguinaldo-days" value="30">
+        <input type="hidden" id="saved-pkg-0-has-prima" value="false">
+        <input type="checkbox" name="HasValesDespensa[]" value="0" checked>
+        <input type="checkbox" name="HasFondoAhorro[]" value="0" checked>
+        <input type="checkbox" name="HasAguinaldo[]" value="0" checked>
+        <input type="checkbox" name="HasPrimaVacacional[]" value="0" checked>
+        <input type="text" name="AguinaldoDays[]" value="">
+    `;
+
+    home.loadSavedBenefitCheckboxes(0);
+
+    expect(expectElement<HTMLInputElement>('input[name="HasValesDespensa[]"]').checked).toBe(false);
+    expect(expectElement<HTMLInputElement>('input[name="HasFondoAhorro[]"]').checked).toBe(false);
+    expect(expectElement<HTMLInputElement>('input[name="HasPrimaVacacional[]"]').checked).toBe(false);
+    expect(expectElement<HTMLInputElement>('input[name="HasAguinaldo[]"]').checked).toBe(true);
+    expect(expectElement<HTMLInputElement>('input[name="AguinaldoDays[]"]').value).toBe('30');
 });
 
 test('tax-free checkbox syncs its always-submitting hidden value', async () => {
