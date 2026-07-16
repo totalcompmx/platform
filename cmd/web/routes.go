@@ -21,7 +21,7 @@ func (app *application) routes() http.Handler {
 	mux.Use(app.apiCORS)
 
 	fileServer := http.FileServer(http.FS(assets.EmbeddedFiles))
-	mux.Handle("/static/...", fileServer, "GET")
+	mux.Handle("/static/...", app.staticCacheHeaders(fileServer), "GET")
 
 	// API routes - NO CSRF, NO SESSION (stateless). Preflight OPTIONS never
 	// reaches these handlers; apiCORS answers it at the top level.

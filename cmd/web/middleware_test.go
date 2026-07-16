@@ -38,6 +38,41 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Equal(t, res.Header.Get("Referrer-Policy"), "origin-when-cross-origin")
 		assert.Equal(t, res.Header.Get("X-Content-Type-Options"), "nosniff")
 		assert.Equal(t, res.Header.Get("X-Frame-Options"), "deny")
+		assert.Equal(t, res.Header.Get("Cache-Control"), "no-cache")
+	})
+}
+
+func TestStaticCacheHeaders(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+
+	t.Run("fingerprinted bundles are immutable", func(t *testing.T) {
+		app := newTestApplication(t)
+		req := newTestRequest(t, http.MethodGet, "/static/dist/assets/home-abc123.js")
+
+		res := send(t, req, app.staticCacheHeaders(next))
+
+		assert.Equal(t, res.Header.Get("Cache-Control"), "public, max-age=31536000, immutable")
+	})
+
+	t.Run("other static files keep the revalidating default", func(t *testing.T) {
+		app := newTestApplication(t)
+		req := newTestRequest(t, http.MethodGet, "/static/api/openapi.json")
+
+		res := send(t, req, app.staticCacheHeaders(next))
+
+		assert.Equal(t, res.Header.Get("Cache-Control"), "")
+	})
+
+	t.Run("served static files revalidate through the route chain", func(t *testing.T) {
+		app := newTestApplication(t)
+		req := newTestRequest(t, http.MethodGet, "/static/api/openapi.json")
+
+		res := send(t, req, app.routes())
+
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+		assert.Equal(t, res.Header.Get("Cache-Control"), "no-cache")
 	})
 }
 

@@ -34,6 +34,22 @@ func (app *application) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "origin-when-cross-origin")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "deny")
+		// Pages and API responses must revalidate so deploys take effect
+		// immediately; fingerprinted assets override this to cache forever.
+		w.Header().Set("Cache-Control", "no-cache")
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// staticCacheHeaders lets browsers and CDNs cache fingerprinted bundles
+// forever (their names change on every build) while everything else under
+// /static revalidates.
+func (app *application) staticCacheHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/dist/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 
 		next.ServeHTTP(w, r)
 	})
@@ -116,7 +132,7 @@ func (app *application) requireAuthenticatedUser(next http.Handler) http.Handler
 			return
 		}
 
-		w.Header().Add("Cache-Control", "no-store")
+		w.Header().Set("Cache-Control", "no-store")
 
 		next.ServeHTTP(w, r)
 	})
