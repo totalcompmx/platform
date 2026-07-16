@@ -320,10 +320,15 @@ test('renders benefit contexts, markup, and saved attributes', () => {
     expect(markup).toMatch(/benefit-0-1/);
     expect(markup).toMatch(/Internet/);
     expect(markup).toMatch(/\$18\.7654 MXN\/USD/);
-    // Exactly one cadence field per row: a duplicate-named input misaligns
-    // the per-row values on submit and resets cadences to "mensual".
-    expect(markup.match(/name="OtherBenefitCadence-0\[\]"/g)).toHaveLength(1);
-    expect(benefitMarkup(percentage).match(/name="OtherBenefitCadence-1\[\]"/g)).toHaveLength(1);
+    // Exactly one submitted field per name per row: duplicate or missing
+    // entries misalign the positional values on the server.
+    for (const field of ['Name', 'Type', 'Amount', 'Currency', 'Cadence', 'TaxFree']) {
+      expect(markup.match(new RegExp(`name="OtherBenefit${field}-0\\[\\]"`, 'g'))).toHaveLength(1);
+      expect(
+        benefitMarkup(percentage).match(new RegExp(`name="OtherBenefit${field}-1\\[\\]"`, 'g'))
+      ).toHaveLength(1);
+    }
+    expect(markup).toMatch(/class="benefit-taxfree-value" value="true"/);
     expect(fixed.taxFreeChecked).toBe('checked');
     expect(fixed.usdSelected).toBe('selected');
     expect(fixed.annualSelected).toBe('selected');
@@ -880,4 +885,31 @@ test('home helpers cover defensive branches and direct state transitions', async
     const unrelated = document.createElement('div');
     home.handleDynamicBenefitChange(new Event('change'));
     unrelated.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+
+test('tax-free checkbox syncs its always-submitting hidden value', async () => {
+    const home = await loadHomeModule();
+    document.body.innerHTML = `
+        <label>
+            <input type="checkbox" class="benefit-taxfree-checkbox">
+            <input type="hidden" name="OtherBenefitTaxFree-0[]" class="benefit-taxfree-value" value="false">
+        </label>
+    `;
+    const checkbox = expectElement<HTMLInputElement>('.benefit-taxfree-checkbox');
+    const hidden = expectElement<HTMLInputElement>('.benefit-taxfree-value');
+
+    checkbox.checked = true;
+    const changeEvent = new Event('change');
+    Object.defineProperty(changeEvent, 'target', { value: checkbox });
+    home.handleDynamicBenefitChange(changeEvent);
+    expect(hidden.value).toBe('true');
+
+    checkbox.checked = false;
+    home.syncBenefitTaxFree(checkbox);
+    expect(hidden.value).toBe('false');
+
+    // No-op when the checkbox is detached from its label/hidden pair.
+    const orphan = document.createElement('input');
+    orphan.type = 'checkbox';
+    home.syncBenefitTaxFree(orphan);
 });

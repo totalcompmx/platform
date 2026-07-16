@@ -554,6 +554,18 @@ export function handleDynamicBenefitChange(event: Event): void {
     if (target.matches('.benefit-currency-select')) {
         toggleBenefitBanxicoNotice(target.getAttribute('data-benefit-id'));
     }
+    if (target.matches('.benefit-taxfree-checkbox')) {
+        syncBenefitTaxFree(target as HTMLInputElement);
+    }
+}
+
+// Mirrors the checkbox state into the always-submitting hidden input so the
+// server receives exactly one positional value per benefit row.
+export function syncBenefitTaxFree(checkbox: HTMLInputElement): void {
+    const hidden = checkbox.closest('label')?.querySelector<HTMLInputElement>('.benefit-taxfree-value');
+    if (!hidden) return;
+
+    hidden.value = String(checkbox.checked);
 }
 
 export function handleDynamicBenefitClick(event: MouseEvent): void {

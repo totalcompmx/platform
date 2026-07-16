@@ -48,7 +48,7 @@ func TestGeneratePDFPreviews(t *testing.T) {
 			"OtherBenefitAmount-0[]":   {"2500"},
 			"OtherBenefitCadence-0[]":  {"monthly"},
 			"OtherBenefitCurrency-0[]": {"MXN"},
-			"OtherBenefitTaxFree-0[]":  {"1"},
+			"OtherBenefitTaxFree-0[]":  {"true"},
 		},
 		"triple.pdf": {
 			"PackageName[]":         {"Oferta Alfa", "Oferta Beta", "Oferta Gamma"},

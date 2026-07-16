@@ -315,7 +315,7 @@ func homePostRequest(t *testing.T) *http.Request {
 	req.PostForm.Add("OtherBenefitType-0[]", "percentage")
 	req.PostForm.Add("OtherBenefitCurrency-0[]", "MXN")
 	req.PostForm.Add("OtherBenefitCadence-0[]", "monthly")
-	req.PostForm.Add("OtherBenefitTaxFree-0[]", "1")
+	req.PostForm.Add("OtherBenefitTaxFree-0[]", "true")
 	return req
 }
 

@@ -44,7 +44,7 @@ func TestAPIWebParity(t *testing.T) {
 		"OtherBenefitAmount-0[]":   {"1000", "500"},
 		"OtherBenefitCadence-0[]":  {"monthly", "annual"},
 		"OtherBenefitCurrency-0[]": {"MXN", "USD"},
-		"OtherBenefitTaxFree-0[]":  {"2"},
+		"OtherBenefitTaxFree-0[]":  {"false", "true"},
 	}
 
 	payload := newHomePostPayload(form)

@@ -371,7 +371,7 @@ func (payload homePostPayload) otherBenefit(packageIndex, benefitIndex int, name
 	return OtherBenefit{
 		Name:         name,
 		Amount:       amount,
-		TaxFree:      containsIndex(payload.form[fmt.Sprintf("OtherBenefitTaxFree-%d[]", packageIndex)], benefitIndex+1),
+		TaxFree:      indexedValue(payload.form[fmt.Sprintf("OtherBenefitTaxFree-%d[]", packageIndex)], benefitIndex, "") == "true",
 		Currency:     indexedValue(payload.form[fmt.Sprintf("OtherBenefitCurrency-%d[]", packageIndex)], benefitIndex, "MXN"),
 		Cadence:      cadence,
 		IsPercentage: isPercentage,

@@ -18,6 +18,7 @@ export interface BenefitContext {
     name: string;
     amount: string;
     taxFreeChecked: string;
+    taxFreeValue: string;
     fixedSelected: string;
     percentageSelected: string;
     amountPlaceholder: string;
@@ -47,6 +48,7 @@ export function benefitContext(
         name: savedBenefitName(savedBenefit),
         amount: savedBenefitAmount(savedBenefit),
         taxFreeChecked: checkedAttr(savedBenefitTaxFree(savedBenefit)),
+        taxFreeValue: String(savedBenefitTaxFree(savedBenefit)),
         fixedSelected: selectedAttr(!isPercentage),
         percentageSelected: selectedAttr(isPercentage),
         amountPlaceholder: benefitAmountPlaceholder(isPercentage),
@@ -95,7 +97,11 @@ export function benefitMarkup(
             <span class="percentage-cadence-label" style="display: ${context.annualLabelDisplay}; font-size: 0.7rem; color: #64748b; font-weight: 500; padding: 0.5rem; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;">📅 Anual</span>
             
             <label style="display: flex; align-items: center; white-space: nowrap; font-size: 0.7rem; cursor: pointer;">
-                <input type="checkbox" name="OtherBenefitTaxFree-${context.packageIndex}[]" value="${context.counter}" ${context.taxFreeChecked} style="margin-right: 0.25rem;">
+                <!-- The hidden input always submits exactly one positional
+                     true/false per row; a checkbox value would drop out when
+                     unchecked and misalign the per-row values on the server. -->
+                <input type="checkbox" class="benefit-taxfree-checkbox" ${context.taxFreeChecked} style="margin-right: 0.25rem;">
+                <input type="hidden" name="OtherBenefitTaxFree-${context.packageIndex}[]" class="benefit-taxfree-value" value="${context.taxFreeValue}">
                 Libre ISR
             </label>
             
