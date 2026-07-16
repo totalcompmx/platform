@@ -79,15 +79,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Plain shell instead of docker/metadata-action: the action's GitHub API
+      # call for repo metadata was returning persistent server-side errors,
+      # and all we need are two deterministic tag strings.
       - name: Generate Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_REGISTRY }}/${{ steps.registry.outputs.namespace }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+        env:
+          NAMESPACE: ${{ steps.registry.outputs.namespace }}
+          IS_DEFAULT_BRANCH: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          TAG_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
+        run: |
+          image="${IMAGE_REGISTRY}/${NAMESPACE}/${IMAGE_NAME}"
+          short_sha="$(printf '%s' "${GITHUB_SHA}" | cut -c1-${DOCKER_METADATA_SHORT_SHA_LENGTH})"
+          tags="${image}:sha-${short_sha}"
+          if [ "${IS_DEFAULT_BRANCH}" = "true" ]; then
+            tags="${tags},${image}:latest"
+          fi
+          if [ -n "${TAG_OVERRIDE}" ]; then
+            tags="${tags},${image}:${TAG_OVERRIDE}"
+          fi
+          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -97,7 +108,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=totalcomp
           cache-to: type=gha,mode=max,scope=totalcomp
 
