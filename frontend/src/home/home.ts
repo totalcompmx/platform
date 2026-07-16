@@ -30,7 +30,6 @@ interface BenefitInputControls {
     percentageLabel: HTMLElement | null;
     currencySelect: HTMLSelectElement | null;
     cadenceSelect: HTMLSelectElement | null;
-    cadenceHidden: HTMLInputElement | null;
     percentageCadenceLabel: HTMLElement | null;
     banxicoNotice: HTMLElement | null;
 }
@@ -223,7 +222,6 @@ export function benefitInputControls(benefitId: string | null): BenefitInputCont
         percentageLabel: benefitDiv.querySelector<HTMLElement>('.percentage-label'),
         currencySelect: benefitDiv.querySelector<HTMLSelectElement>('.benefit-currency-select'),
         cadenceSelect: benefitDiv.querySelector<HTMLSelectElement>('.benefit-cadence-select'),
-        cadenceHidden: benefitDiv.querySelector<HTMLInputElement>('.benefit-cadence-hidden'),
         percentageCadenceLabel: benefitDiv.querySelector<HTMLElement>('.percentage-cadence-label'),
         banxicoNotice: document.getElementById(`banxico-notice-${benefitId}`)
     };
@@ -234,7 +232,6 @@ export function applyPercentageBenefitInput(controls: BenefitInputControls): voi
     setDisplay(controls.percentageLabel, 'inline');
     setDisplay(controls.currencySelect, 'none');
     setDisplay(controls.cadenceSelect, 'none');
-    setDisplay(controls.cadenceHidden, 'inline');
     setDisplay(controls.percentageCadenceLabel, 'inline');
     setDisplay(controls.banxicoNotice, 'none');
     controls.amountInput.classList.remove('money-input');
@@ -245,7 +242,6 @@ export function applyFixedBenefitInput(controls: BenefitInputControls): void {
     setDisplay(controls.percentageLabel, 'none');
     setDisplay(controls.currencySelect, 'block');
     setDisplay(controls.cadenceSelect, 'block');
-    setDisplay(controls.cadenceHidden, 'none');
     setDisplay(controls.percentageCadenceLabel, 'none');
     controls.amountInput.classList.add('money-input');
     attachCommaFormatting([controls.amountInput]);

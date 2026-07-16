@@ -320,6 +320,10 @@ test('renders benefit contexts, markup, and saved attributes', () => {
     expect(markup).toMatch(/benefit-0-1/);
     expect(markup).toMatch(/Internet/);
     expect(markup).toMatch(/\$18\.7654 MXN\/USD/);
+    // Exactly one cadence field per row: a duplicate-named input misaligns
+    // the per-row values on submit and resets cadences to "mensual".
+    expect(markup.match(/name="OtherBenefitCadence-0\[\]"/g)).toHaveLength(1);
+    expect(benefitMarkup(percentage).match(/name="OtherBenefitCadence-1\[\]"/g)).toHaveLength(1);
     expect(fixed.taxFreeChecked).toBe('checked');
     expect(fixed.usdSelected).toBe('selected');
     expect(fixed.annualSelected).toBe('selected');

@@ -23,7 +23,7 @@ export interface BenefitContext {
     amountPlaceholder: string;
     percentageDisplay: string;
     fixedControlStyle: string;
-    hiddenCadenceDisplay: string;
+    annualLabelDisplay: string;
     mxnSelected: string;
     usdSelected: string;
     monthlySelected: string;
@@ -52,7 +52,7 @@ export function benefitContext(
         amountPlaceholder: benefitAmountPlaceholder(isPercentage),
         percentageDisplay: displayValue(isPercentage, 'inline', 'none'),
         fixedControlStyle: benefitFixedControlStyle(isPercentage),
-        hiddenCadenceDisplay: displayValue(isPercentage, 'inline', 'none'),
+        annualLabelDisplay: displayValue(isPercentage, 'inline', 'none'),
         mxnSelected: selectedAttr(currency === 'MXN'),
         usdSelected: selectedAttr(currency === 'USD'),
         monthlySelected: selectedAttr(cadence === 'monthly'),
@@ -89,9 +89,10 @@ export function benefitMarkup(
                 <option value="annual" ${context.annualSelected}>Anual</option>
             </select>
             
-            <!-- Hidden input for percentage bonuses (always annual) -->
-            <input type="hidden" name="OtherBenefitCadence-${context.packageIndex}[]" class="benefit-cadence-hidden" value="annual" style="display: ${context.hiddenCadenceDisplay};">
-            <span class="percentage-cadence-label" style="display: ${context.hiddenCadenceDisplay}; font-size: 0.7rem; color: #64748b; font-weight: 500; padding: 0.5rem; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;">📅 Anual</span>
+            <!-- Percentage bonuses are always annual; the server enforces it.
+                 Only the select above submits a cadence value: a second input
+                 with the same name would misalign the per-row values. -->
+            <span class="percentage-cadence-label" style="display: ${context.annualLabelDisplay}; font-size: 0.7rem; color: #64748b; font-weight: 500; padding: 0.5rem; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0;">📅 Anual</span>
             
             <label style="display: flex; align-items: center; white-space: nowrap; font-size: 0.7rem; cursor: pointer;">
                 <input type="checkbox" name="OtherBenefitTaxFree-${context.packageIndex}[]" value="${context.counter}" ${context.taxFreeChecked} style="margin-right: 0.25rem;">
